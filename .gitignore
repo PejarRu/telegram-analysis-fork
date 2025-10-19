@@ -13,3 +13,4 @@ anaconda-project.yml
 *.json
 *.ipynb
 config.ini
+.env
