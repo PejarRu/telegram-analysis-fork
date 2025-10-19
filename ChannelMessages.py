@@ -1,6 +1,8 @@
 import configparser
 import json
 import asyncio
+import requests
+import os
 from datetime import date, datetime
 
 from telethon import TelegramClient
@@ -23,23 +25,16 @@ class DateTimeEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, o)
 
 
-# Reading Configs
-config = configparser.ConfigParser()
-config.read("config.ini")
-
-# Setting configuration values
-api_id = config['Telegram']['api_id']
-api_hash = config['Telegram']['api_hash']
-
-api_hash = str(api_hash)
-
-phone = config['Telegram']['phone']
-username = config['Telegram']['username']
+# Reading environment variables
+api_id = os.getenv('TELEGRAM_API_ID')
+api_hash = os.getenv('TELEGRAM_API_HASH')
+phone = os.getenv('TELEGRAM_PHONE')
+username = os.getenv('TELEGRAM_USERNAME')
 
 # Create the client and connect
 client = TelegramClient(username, api_id, api_hash)
 
-async def main(phone):
+async def get_last_messages_async(entity, webhook_url, limit=2):
     await client.start()
     print("Client Created")
     # Ensure you're authorized
@@ -50,22 +45,17 @@ async def main(phone):
         except SessionPasswordNeededError:
             await client.sign_in(password=input('Password: '))
 
-    me = await client.get_me()
-
-    user_input_channel = input('enter entity(telegram URL or entity id):')
-
-    if user_input_channel.isdigit():
-        entity = PeerChannel(int(user_input_channel))
+    if entity.isdigit():
+        entity_obj = PeerChannel(int(entity))
     else:
-        entity = user_input_channel
+        entity_obj = entity
 
-    my_channel = await client.get_entity(entity)
+    my_channel = await client.get_entity(entity_obj)
 
     offset_id = 0
-    limit = 100
     all_messages = []
     total_messages = 0
-    total_count_limit = 0
+    total_count_limit = limit
 
     while True:
         print("Current Offset ID is:", offset_id, "; Total Messages:", total_messages)
@@ -74,7 +64,7 @@ async def main(phone):
             offset_id=offset_id,
             offset_date=None,
             add_offset=0,
-            limit=limit,
+            limit=100,
             max_id=0,
             min_id=0,
             hash=0
@@ -84,13 +74,18 @@ async def main(phone):
         messages = history.messages
         for message in messages:
             all_messages.append(message.to_dict())
+            # Send to webhook
+            message_json = json.dumps(message.to_dict(), cls=DateTimeEncoder)
+            try:
+                response = requests.post(webhook_url, json=message.to_dict(), headers={'Content-Type': 'application/json'})
+                print(f"Sent message to {webhook_url}, status: {response.status_code}")
+            except Exception as e:
+                print(f"Error sending to webhook: {e}")
         offset_id = messages[len(messages) - 1].id
         total_messages = len(all_messages)
         if total_count_limit != 0 and total_messages >= total_count_limit:
             break
 
-    with open('channel_messages.json', 'w') as outfile:
-        json.dump(all_messages, outfile, cls=DateTimeEncoder)
-
-with client:
-    client.loop.run_until_complete(main(phone))
+def get_last_messages(entity, webhook_url, limit=2):
+    with client:
+        client.loop.run_until_complete(get_last_messages_async(entity, webhook_url, limit))
