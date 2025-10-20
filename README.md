@@ -16,19 +16,32 @@ This project is configured for easy deployment using Dockploy.
 
 ### Setup
 1. Copy `.env.example` to `.env` and fill in your Telegram API credentials.
-2. In Dockploy:
+2. Create the Telegram session locally:
+   - Run the app locally: `python -m app.main`
+   - Enter your phone and code to authenticate.
+   - This creates `data/session.session`. Copy this file to the deployment.
+3. In Dockploy:
    - Select source: Connect your GitHub/GitLab/Bitbucket repo.
-   - Build Type: Dockerfile
+   - Build Type: Dockerfile, Path: `.` (root)
    - Environment: Upload or paste your `.env` file.
-   - Domain: Set your subdomain (e.g., telegram.yourdomain.com) if needed.
-3. Deploy!
+   - Mount volume: `/app/data` for session persistence.
+   - Domain: Set your subdomain (e.g., api-telegram.antonberzins.com) if needed.
+4. Deploy!
 
 ### API Usage
-Send a POST request to `/trigger` with JSON:
-```json
-{
-  "entity": "@channel_name",
-  "webhook_url": "https://your-webhook.com"
-}
+Send a POST request to `/trigger` with JSON and Authorization header:
+```bash
+curl -X POST https://api-telegram.antonberzins.com/trigger \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"entity": "@channel_name", "webhook_url": "https://your-webhook.com", "limit": 5}'
 ```
-It will fetch the last 2 messages and send them to the webhook.
+Parameters:
+- `entity` (required): Telegram channel/group username or ID.
+- `webhook_url` (optional): URL to send messages. Defaults to env var.
+- `limit` (optional): Number of last messages to fetch/send (default: 2).
+
+It will fetch the messages and send them to the webhook.
+
+### View Last Response
+GET `https://api-telegram.antonberzins.com/` to view the last message sent (for debugging).

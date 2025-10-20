@@ -3,6 +3,7 @@ import json
 import asyncio
 import requests
 import os
+import logging
 from datetime import date, datetime
 
 from telethon import TelegramClient
@@ -11,6 +12,8 @@ from telethon.tl.functions.messages import (GetHistoryRequest)
 from telethon.tl.types import (
     PeerChannel
 )
+
+logger = logging.getLogger(__name__)
 
 
 # some functions to parse json date
@@ -36,9 +39,10 @@ client = TelegramClient(username, api_id, api_hash)
 
 async def get_last_messages_async(entity, webhook_url, limit=2):
     await client.start()
-    print("Client Created")
+    logger.info("Telegram client started")
     # Ensure you're authorized
     if await client.is_user_authorized() == False:
+        logger.info("User not authorized, requesting code")
         await client.send_code_request(phone)
         try:
             await client.sign_in(phone, input('Enter the code: '))
@@ -58,7 +62,7 @@ async def get_last_messages_async(entity, webhook_url, limit=2):
     total_count_limit = limit
 
     while True:
-        print("Current Offset ID is:", offset_id, "; Total Messages:", total_messages)
+        logger.debug(f"Current Offset ID is: {offset_id}, Total Messages: {total_messages}")
         history = await client(GetHistoryRequest(
             peer=my_channel,
             offset_id=offset_id,
@@ -78,9 +82,12 @@ async def get_last_messages_async(entity, webhook_url, limit=2):
             message_json = json.dumps(message.to_dict(), cls=DateTimeEncoder)
             try:
                 response = requests.post(webhook_url, json=message.to_dict(), headers={'Content-Type': 'application/json'})
-                print(f"Sent message to {webhook_url}, status: {response.status_code}")
+                logger.info(f"Sent message to {webhook_url}, status: {response.status_code}")
+                # Save last response
+                with open('/app/data/last_response.json', 'w') as f:
+                    json.dump(message.to_dict(), f, cls=DateTimeEncoder)
             except Exception as e:
-                print(f"Error sending to webhook: {e}")
+                logger.error(f"Error sending to webhook: {e}")
         offset_id = messages[len(messages) - 1].id
         total_messages = len(all_messages)
         if total_count_limit != 0 and total_messages >= total_count_limit:
