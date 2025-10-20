@@ -26,4 +26,4 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD pgrep -f "python" || exit 1
 
 # Ejecuta
-CMD ["python", "-c", "print('Container started'); import time; time.sleep(3600)"]
+CMD ["gunicorn", "--bind", "0.0.0.0:3000", "app.main:app"]
