@@ -26,4 +26,4 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD pgrep -f "python" || exit 1
 
 # Ejecuta
-CMD ["python", "-m", "app.main"]
+CMD ["gunicorn", "--bind", "0.0.0.0:3000", "app.main:app"]

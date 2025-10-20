@@ -8,6 +8,8 @@ from .ChannelMessages import get_last_messages
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+logger.info("Starting Flask app...")
+
 app = Flask(__name__)
 
 # Reading environment variables
