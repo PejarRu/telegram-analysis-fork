@@ -44,10 +44,12 @@ def trigger():
 
     try:
         logger.info(f"Processing request for entity: {entity}, limit: {limit}")
-        get_last_messages(entity, webhook_url, limit=limit)
-        return jsonify({'status': 'success'}), 200
+        messages = get_last_messages(entity, webhook_url, limit=limit)
+        logger.info(f"Retrieved {len(messages)} messages")
+        return jsonify(messages), 200
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
+        return jsonify({'error': str(e)}), 500
         return jsonify({'error': str(e)}), 500
 
 @app.route('/', methods=['GET'])

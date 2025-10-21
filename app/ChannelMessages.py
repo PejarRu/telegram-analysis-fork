@@ -78,21 +78,29 @@ async def get_last_messages_async(entity, webhook_url, limit=2):
         messages = history.messages
         for message in messages:
             all_messages.append(message.to_dict())
-            # Send to webhook
-            message_json = json.dumps(message.to_dict(), cls=DateTimeEncoder)
-            try:
-                response = requests.post(webhook_url, json=message.to_dict(), headers={'Content-Type': 'application/json'})
-                logger.info(f"Sent message to {webhook_url}, status: {response.status_code}")
-                # Save last response
-                with open('/app/data/last_response.json', 'w') as f:
-                    json.dump(message.to_dict(), f, cls=DateTimeEncoder)
-            except Exception as e:
-                logger.error(f"Error sending to webhook: {e}")
+            # Send to webhook if provided
+            if webhook_url:
+                message_json = json.dumps(message.to_dict(), cls=DateTimeEncoder)
+                try:
+                    response = requests.post(webhook_url, json=message.to_dict(), headers={'Content-Type': 'application/json'})
+                    logger.info(f"Sent message to {webhook_url}, status: {response.status_code}")
+                    # Save last response
+                    with open('/app/data/last_response.json', 'w') as f:
+                        json.dump(message.to_dict(), f, cls=DateTimeEncoder)
+                except Exception as e:
+                    logger.error(f"Error sending to webhook: {e}")
         offset_id = messages[len(messages) - 1].id
         total_messages = len(all_messages)
         if total_count_limit != 0 and total_messages >= total_count_limit:
             break
 
+    return all_messages
+
 def get_last_messages(entity, webhook_url, limit=2):
-    with client:
-        client.loop.run_until_complete(get_last_messages_async(entity, webhook_url, limit))
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        messages = loop.run_until_complete(get_last_messages_async(entity, webhook_url, limit))
+        return messages
+    finally:
+        loop.close()

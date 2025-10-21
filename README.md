@@ -38,10 +38,13 @@ curl -X POST https://api-telegram.antonberzins.com/trigger \
 ```
 Parameters:
 - `entity` (required): Telegram channel/group username or ID.
-- `webhook_url` (optional): URL to send messages. Defaults to env var.
+- `webhook_url` (optional): URL to send messages. If omitted, only returns JSON response.
 - `limit` (optional): Number of last messages to fetch/send (default: 2).
 
-It will fetch the messages and send them to the webhook.
+Response: JSON array of messages. If webhook provided, also sends to webhook.
+
+### View Last Response
+GET `https://api-telegram.antonberzins.com/` to view the last message sent (for debugging).
 
 ### View Last Response
 GET `https://api-telegram.antonberzins.com/` to view the last message sent (for debugging).
