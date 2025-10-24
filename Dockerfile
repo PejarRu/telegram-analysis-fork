@@ -19,11 +19,10 @@ RUN pip install -r requirements.txt
 COPY . /app
 
 # Crea directorios persistentes
-RUN mkdir -p /app/data /app/logs && chown -R appuser:appuser /app
-USER appuser
+RUN mkdir -p /app/data /app/logs
 
 # (Opcional) healthcheck simple: proceso vivo
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD pgrep -f "python" || exit 1
 
 # Ejecuta
-CMD ["gunicorn", "--bind", "0.0.0.0:3000", "app.main:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app.main:app"]

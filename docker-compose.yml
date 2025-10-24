@@ -1,23 +1,13 @@
-version: '3.8'
-
 services:
   telegram-service:
     build: .
     container_name: telegram-service
     restart: unless-stopped
-    environment:
-      - FLASK_ENV=production
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
     volumes:
-      - ./config.ini:/app/config.ini # Asegúrate de tener config.ini con credenciales reales
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.telegram-service.rule=Host(`telegram.antonberzins.com`)"
-      - "traefik.http.routers.telegram-service.entrypoints=websecure"
-      - "traefik.http.routers.telegram-service.tls.certresolver=letsencrypt"
-      - "traefik.http.services.telegram-service.loadbalancer.server.port=8000"
-    networks:
-      - traefik-net
-
-networks:
-  traefik-net:
-    external: true # Asume que tienes una red externa llamada traefik-net
+      - .:/app
+    environment:
+      - FLASK_ENV=development

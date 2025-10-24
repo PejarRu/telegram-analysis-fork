@@ -2,7 +2,11 @@ from flask import Flask, request, jsonify
 import os
 import logging
 import json
+from dotenv import load_dotenv
 from .ChannelMessages import get_last_messages
+
+# Load environment variables
+load_dotenv()
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -23,14 +27,10 @@ api_key = os.getenv('API_KEY')  # Nueva variable para autenticación
 @app.before_request
 def check_api_key():
     if request.method == 'POST' and request.path == '/trigger':
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
+        auth_header = request.headers.get('X-API-Key')
+        if not auth_header or auth_header != api_key:
             logger.warning("Unauthorized access attempt")
             return jsonify({'error': 'Unauthorized'}), 401
-        token = auth_header.split(' ')[1]
-        if token != api_key:
-            logger.warning("Invalid API key")
-            return jsonify({'error': 'Invalid API key'}), 403
 
 @app.route('/trigger', methods=['POST'])
 def trigger():
@@ -50,7 +50,6 @@ def trigger():
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
         return jsonify({'error': str(e)}), 500
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/', methods=['GET'])
 def get_last_response():
@@ -63,3 +62,6 @@ def get_last_response():
     except Exception as e:
         logger.error(f"Error reading last response: {str(e)}")
         return jsonify({'error': 'Internal error'}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)

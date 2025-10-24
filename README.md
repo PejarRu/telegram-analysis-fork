@@ -16,10 +16,10 @@ This project is configured for easy deployment using Dockploy.
 
 ### Setup
 1. Copy `.env.example` to `.env` and fill in your Telegram API credentials.
-2. Create the Telegram session locally:
-   - Run the app locally: `python -m app.main`
-   - Enter your phone and code to authenticate.
-   - This creates `data/session.session`. Copy this file to the deployment.
+2. Authorize the Telegram session locally **before** deploying:
+   - Activate your virtualenv and run `python -m app.auth`.
+   - Introduce the verification code you receive from Telegram (or set `TELEGRAM_LOGIN_CODE` when running the command).
+   - The generated session file (e.g. `@username.session`) will be created in the project root. Keep it with your deployment artifacts so containers can reuse it.
 3. In Dockploy:
    - Select source: Connect your GitHub/GitLab/Bitbucket repo.
    - Build Type: Dockerfile, Path: `.` (root)
@@ -29,10 +29,10 @@ This project is configured for easy deployment using Dockploy.
 4. Deploy!
 
 ### API Usage
-Send a POST request to `/trigger` with JSON and Authorization header:
+Send a POST request to `/trigger` with JSON and API key header:
 ```bash
 curl -X POST https://api-telegram.antonberzins.com/trigger \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+   -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"entity": "@channel_name", "webhook_url": "https://your-webhook.com", "limit": 5}'
 ```

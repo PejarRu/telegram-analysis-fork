@@ -4,10 +4,9 @@ import asyncio
 import requests
 import os
 import logging
-from datetime import date, datetime
+from datetime import datetime
 
 from telethon import TelegramClient
-from telethon.errors import SessionPasswordNeededError
 from telethon.tl.functions.messages import (GetHistoryRequest)
 from telethon.tl.types import (
     PeerChannel
@@ -27,27 +26,28 @@ class DateTimeEncoder(json.JSONEncoder):
 
         return json.JSONEncoder.default(self, o)
 
-
-# Reading environment variables
-api_id = os.getenv('TELEGRAM_API_ID')
-api_hash = os.getenv('TELEGRAM_API_HASH')
-phone = os.getenv('TELEGRAM_PHONE')
-username = os.getenv('TELEGRAM_USERNAME')
-
-# Create the client and connect
-client = TelegramClient(username, api_id, api_hash)
-
 async def get_last_messages_async(entity, webhook_url, limit=2):
+    # Reading environment variables inside function
+    api_id = os.getenv('TELEGRAM_API_ID')
+    api_hash = os.getenv('TELEGRAM_API_HASH')
+    phone = os.getenv('TELEGRAM_PHONE')
+    username = os.getenv('TELEGRAM_USERNAME')
+
+    # Create the client and connect
+    client = TelegramClient(username, api_id, api_hash)
+    await client.connect()
+
+    # Require prior authorization to avoid interactive prompts in docker
+    if not await client.is_user_authorized():
+        msg = (
+            "Telegram client not authorized. Run `python -m app.auth` locally "
+            "to complete the login before triggering the service."
+        )
+        logger.error(msg)
+        raise RuntimeError(msg)
+
     await client.start()
     logger.info("Telegram client started")
-    # Ensure you're authorized
-    if await client.is_user_authorized() == False:
-        logger.info("User not authorized, requesting code")
-        await client.send_code_request(phone)
-        try:
-            await client.sign_in(phone, input('Enter the code: '))
-        except SessionPasswordNeededError:
-            await client.sign_in(password=input('Password: '))
 
     if entity.isdigit():
         entity_obj = PeerChannel(int(entity))
@@ -77,16 +77,23 @@ async def get_last_messages_async(entity, webhook_url, limit=2):
             break
         messages = history.messages
         for message in messages:
-            all_messages.append(message.to_dict())
+            if total_count_limit and len(all_messages) >= total_count_limit:
+                break
+            serialized_message = json.loads(json.dumps(message.to_dict(), cls=DateTimeEncoder))
+            all_messages.append(serialized_message)
             # Send to webhook if provided
             if webhook_url:
-                message_json = json.dumps(message.to_dict(), cls=DateTimeEncoder)
                 try:
-                    response = requests.post(webhook_url, json=message.to_dict(), headers={'Content-Type': 'application/json'})
+                    os.makedirs('/app/data', exist_ok=True)
+                    response = requests.post(
+                        webhook_url,
+                        json=serialized_message,
+                        headers={'Content-Type': 'application/json'}
+                    )
                     logger.info(f"Sent message to {webhook_url}, status: {response.status_code}")
                     # Save last response
                     with open('/app/data/last_response.json', 'w') as f:
-                        json.dump(message.to_dict(), f, cls=DateTimeEncoder)
+                        json.dump(serialized_message, f)
                 except Exception as e:
                     logger.error(f"Error sending to webhook: {e}")
         offset_id = messages[len(messages) - 1].id
