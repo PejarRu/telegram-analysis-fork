@@ -1,18 +1,18 @@
-import configparser
 import json
 import asyncio
 import requests
 import os
 import logging
 from datetime import datetime
+from threading import Lock
 
 from telethon import TelegramClient
-from telethon.tl.functions.messages import (GetHistoryRequest)
-from telethon.tl.types import (
-    PeerChannel
-)
+from telethon.tl.functions.messages import GetHistoryRequest
+from telethon.tl.types import PeerChannel
 
 logger = logging.getLogger(__name__)
+
+_client_lock = Lock()
 
 
 # some functions to parse json date
@@ -45,79 +45,85 @@ async def get_last_messages_async(entity, webhook_url, limit=2):
 
     # Create the client and connect
     client = TelegramClient(session_path, api_id, api_hash)
-    await client.connect()
 
-    # Require prior authorization to avoid interactive prompts in docker
-    if not await client.is_user_authorized():
-        msg = (
-            "Telegram client not authorized. Run `python -m app.auth` locally "
-            "to complete the login before triggering the service."
-        )
-        logger.error(msg)
-        raise RuntimeError(msg)
+    try:
+        await client.connect()
 
-    await client.start()
-    logger.info("Telegram client started")
+        # Require prior authorization to avoid interactive prompts in docker
+        if not await client.is_user_authorized():
+            msg = (
+                "Telegram client not authorized. Run `python -m app.auth` locally "
+                "to complete the login before triggering the service."
+            )
+            logger.error(msg)
+            raise RuntimeError(msg)
 
-    if entity.isdigit():
-        entity_obj = PeerChannel(int(entity))
-    else:
-        entity_obj = entity
+        await client.start()
+        logger.info("Telegram client started")
 
-    my_channel = await client.get_entity(entity_obj)
+        if entity.isdigit():
+            entity_obj = PeerChannel(int(entity))
+        else:
+            entity_obj = entity
 
-    offset_id = 0
-    all_messages = []
-    total_messages = 0
-    total_count_limit = limit
+        my_channel = await client.get_entity(entity_obj)
 
-    while True:
-        logger.debug(f"Current Offset ID is: {offset_id}, Total Messages: {total_messages}")
-        history = await client(GetHistoryRequest(
-            peer=my_channel,
-            offset_id=offset_id,
-            offset_date=None,
-            add_offset=0,
-            limit=100,
-            max_id=0,
-            min_id=0,
-            hash=0
-        ))
-        if not history.messages:
-            break
-        messages = history.messages
-        for message in messages:
-            if total_count_limit and len(all_messages) >= total_count_limit:
+        offset_id = 0
+        all_messages = []
+        total_messages = 0
+        total_count_limit = limit
+
+        while True:
+            logger.debug(f"Current Offset ID is: {offset_id}, Total Messages: {total_messages}")
+            history = await client(GetHistoryRequest(
+                peer=my_channel,
+                offset_id=offset_id,
+                offset_date=None,
+                add_offset=0,
+                limit=100,
+                max_id=0,
+                min_id=0,
+                hash=0
+            ))
+            if not history.messages:
                 break
-            serialized_message = json.loads(json.dumps(message.to_dict(), cls=DateTimeEncoder))
-            all_messages.append(serialized_message)
-            # Send to webhook if provided
-            if webhook_url:
-                try:
-                    os.makedirs('/app/data', exist_ok=True)
-                    response = requests.post(
-                        webhook_url,
-                        json=serialized_message,
-                        headers={'Content-Type': 'application/json'}
-                    )
-                    logger.info(f"Sent message to {webhook_url}, status: {response.status_code}")
-                    # Save last response
-                    with open('/app/data/last_response.json', 'w') as f:
-                        json.dump(serialized_message, f)
-                except Exception as e:
-                    logger.error(f"Error sending to webhook: {e}")
-        offset_id = messages[len(messages) - 1].id
-        total_messages = len(all_messages)
-        if total_count_limit != 0 and total_messages >= total_count_limit:
-            break
+            messages = history.messages
+            for message in messages:
+                if total_count_limit and len(all_messages) >= total_count_limit:
+                    break
+                serialized_message = json.loads(json.dumps(message.to_dict(), cls=DateTimeEncoder))
+                all_messages.append(serialized_message)
+                # Send to webhook if provided
+                if webhook_url:
+                    try:
+                        os.makedirs('/app/data', exist_ok=True)
+                        response = requests.post(
+                            webhook_url,
+                            json=serialized_message,
+                            headers={'Content-Type': 'application/json'}
+                        )
+                        logger.info(f"Sent message to {webhook_url}, status: {response.status_code}")
+                        # Save last response
+                        with open('/app/data/last_response.json', 'w') as f:
+                            json.dump(serialized_message, f)
+                    except Exception as e:
+                        logger.error(f"Error sending to webhook: {e}")
+            offset_id = messages[len(messages) - 1].id
+            total_messages = len(all_messages)
+            if total_count_limit != 0 and total_messages >= total_count_limit:
+                break
 
-    return all_messages
+        return all_messages
+    finally:
+        await client.disconnect()
+        logger.info("Telegram client disconnected")
 
 def get_last_messages(entity, webhook_url, limit=2):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        messages = loop.run_until_complete(get_last_messages_async(entity, webhook_url, limit))
-        return messages
-    finally:
-        loop.close()
+    with _client_lock:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            messages = loop.run_until_complete(get_last_messages_async(entity, webhook_url, limit))
+            return messages
+        finally:
+            loop.close()
