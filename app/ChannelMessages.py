@@ -33,8 +33,18 @@ async def get_last_messages_async(entity, webhook_url, limit=2):
     phone = os.getenv('TELEGRAM_PHONE')
     username = os.getenv('TELEGRAM_USERNAME')
 
+    session_file = os.getenv('TELEGRAM_SESSION_FILE', username)
+    session_dir = os.getenv('TELEGRAM_SESSION_DIR', '/app/data')
+
+    if not os.path.isabs(session_file):
+        session_path = os.path.join(session_dir, session_file)
+    else:
+        session_path = session_file
+
+    os.makedirs(os.path.dirname(session_path), exist_ok=True)
+
     # Create the client and connect
-    client = TelegramClient(username, api_id, api_hash)
+    client = TelegramClient(session_path, api_id, api_hash)
     await client.connect()
 
     # Require prior authorization to avoid interactive prompts in docker
