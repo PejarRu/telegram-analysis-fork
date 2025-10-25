@@ -27,8 +27,14 @@ api_key = os.getenv('API_KEY')  # Nueva variable para autenticación
 @app.before_request
 def check_api_key():
     if request.method == 'POST' and request.path == '/trigger':
+        # Check X-API-Key header or Authorization Bearer token
         auth_header = request.headers.get('X-API-Key')
-        if not auth_header or auth_header != api_key:
+        bearer_token = None
+        auth_bearer = request.headers.get('Authorization')
+        if auth_bearer and auth_bearer.startswith('Bearer '):
+            bearer_token = auth_bearer[7:]  # Remove 'Bearer ' prefix
+        
+        if not ((auth_header and auth_header == api_key) or (bearer_token and bearer_token == api_key)):
             logger.warning("Unauthorized access attempt")
             return jsonify({'error': 'Unauthorized'}), 401
 
@@ -53,8 +59,14 @@ def trigger():
 
 @app.route('/', methods=['GET'])
 def get_last_response():
+    # Check X-API-Key header or Authorization Bearer token
     auth_header = request.headers.get('X-API-Key')
-    if auth_header != api_key:
+    bearer_token = None
+    auth_bearer = request.headers.get('Authorization')
+    if auth_bearer and auth_bearer.startswith('Bearer '):
+        bearer_token = auth_bearer[7:]  # Remove 'Bearer ' prefix
+    
+    if not ((auth_header and auth_header == api_key) or (bearer_token and bearer_token == api_key)):
         return jsonify({'status': 'ok'}), 200
 
     try:

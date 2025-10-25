@@ -94,9 +94,16 @@ The generated session file must accompany your deployment; without it Telethon w
      ```
 7. **Smoke test from the internet**
    ```bash
+   # Using X-API-Key header
    curl -X POST https://your-domain/trigger \
      -H 'Content-Type: application/json' \
      -H 'X-API-Key: <your api key>' \
+     -d '{"entity": "@telegram", "limit": 1}'
+   
+   # Or using Authorization Bearer token
+   curl -X POST https://your-domain/trigger \
+     -H 'Content-Type: application/json' \
+     -H 'Authorization: Bearer <your api key>' \
      -d '{"entity": "@telegram", "limit": 1}'
    ```
    Expect a JSON array with the latest messages. A `500` with `Telegram client not authorized` means the session file was not found; a `502` usually means the internal port is misconfigured.
@@ -115,13 +122,13 @@ If you edit environment variables or mounts in Dokploy, click *Redeploy* afterwa
 | `webhook_url` | string | ➖ | Destination webhook. Defaults to `N8N_WEBHOOK_URL` if set |
 | `limit` | integer | ➖ | Number of messages to fetch (default 2) |
 
-Headers: `Content-Type: application/json`, `X-API-Key: <API_KEY>`.
+Headers: `Content-Type: application/json`, and either `X-API-Key: <API_KEY>` or `Authorization: Bearer <API_KEY>`.
 
 Returns: JSON array with the requested messages. When `webhook_url` is provided, each message is also POSTed individually to that URL.
 
 ### GET `/`
 
-Health endpoint. Without the API key in `X-API-Key` it responds with `{"status": "ok"}` for simple uptime checks. When the header is present it returns the last webhook payload (`last_response.json`) or `{"message": "No response yet"}` if nothing has been processed yet.
+Health endpoint. Without authentication (`X-API-Key` header or `Authorization: Bearer` token) it responds with `{"status": "ok"}` for simple uptime checks. When properly authenticated it returns the last webhook payload (`last_response.json`) or `{"message": "No response yet"}` if nothing has been processed yet.
 
 ---
 
