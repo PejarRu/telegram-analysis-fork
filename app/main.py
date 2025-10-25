@@ -53,6 +53,10 @@ def trigger():
 
 @app.route('/', methods=['GET'])
 def get_last_response():
+    auth_header = request.headers.get('X-API-Key')
+    if auth_header != api_key:
+        return jsonify({'status': 'ok'}), 200
+
     try:
         with open('/app/data/last_response.json', 'r') as f:
             data = json.load(f)
