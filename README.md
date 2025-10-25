@@ -121,7 +121,7 @@ Returns: JSON array with the requested messages. When `webhook_url` is provided,
 
 ### GET `/`
 
-Returns the last message that was emitted to a webhook (or `{"message": "No response yet"}` if no payload has been forwarded yet). Useful for health probes and debugging.
+Health endpoint. Without the API key in `X-API-Key` it responds with `{"status": "ok"}` for simple uptime checks. When the header is present it returns the last webhook payload (`last_response.json`) or `{"message": "No response yet"}` if nothing has been processed yet.
 
 ---
 
