@@ -58,7 +58,7 @@ def get_last_response():
             data = json.load(f)
         return jsonify(data), 200
     except FileNotFoundError:
-        return jsonify({'message': 'No response yet'}), 404
+        return jsonify({'message': 'No response yet'}), 200
     except Exception as e:
         logger.error(f"Error reading last response: {str(e)}")
         return jsonify({'error': 'Internal error'}), 500
