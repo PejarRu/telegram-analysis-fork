@@ -21,7 +21,7 @@ api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
 phone = os.getenv('TELEGRAM_PHONE')
 username = os.getenv('TELEGRAM_USERNAME')
-webhook_endpoint = os.getenv('N8N_WEBHOOK_URL', 'https://n8n.antonberzins.com/webhook/telegram-messages')
+webhook_endpoint = os.getenv('N8N_WEBHOOK_URL')
 api_key = os.getenv('API_KEY')  # Nueva variable para autenticación
 
 @app.before_request
