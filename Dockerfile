@@ -21,8 +21,8 @@ COPY . /app
 # Crea directorios persistentes
 RUN mkdir -p /app/data /app/logs
 
-# (Opcional) healthcheck simple: proceso vivo
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD pgrep -f "python" || exit 1
+# Healthcheck performed in pure Python to avoid extra OS packages
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD python -c "import urllib.request as r; r.urlopen('http://127.0.0.1:8000/', timeout=3)"
 
 # Ejecuta
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app.main:app"]
