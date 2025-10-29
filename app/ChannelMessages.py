@@ -30,6 +30,51 @@ class DateTimeEncoder(json.JSONEncoder):
 
         return json.JSONEncoder.default(self, o)
 
+
+def _parse_headers_spec(raw_value: Optional[str], source: str) -> Dict[str, str]:
+    headers: Dict[str, str] = {}
+    if not raw_value:
+        return headers
+
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError:
+        parsed = None
+    else:
+        if isinstance(parsed, dict):
+            for key, value in parsed.items():
+                headers[str(key)] = str(value)
+            return headers
+        logger.warning("%s must be a JSON object; got %s", source, type(parsed).__name__)
+        return headers
+
+    # Fallback: comma-separated key:value pairs
+    for entry in raw_value.split(','):
+        entry = entry.strip()
+        if not entry:
+            continue
+        if ':' not in entry:
+            logger.warning("Unable to parse header entry '%s' from %s", entry, source)
+            continue
+        key, value = entry.split(':', 1)
+        key = key.strip()
+        value = value.strip()
+        if key:
+            headers[key] = value
+
+    if not headers:
+        logger.warning("%s could not be parsed into HTTP headers", source)
+
+    return headers
+
+
+def _build_headers(extra_env_var: Optional[str] = None) -> Dict[str, str]:
+    headers: Dict[str, str] = {'Content-Type': 'application/json'}
+    headers.update(_parse_headers_spec(os.getenv('WEBHOOK_HEADERS'), 'WEBHOOK_HEADERS'))
+    if extra_env_var:
+        headers.update(_parse_headers_spec(os.getenv(extra_env_var), extra_env_var))
+    return headers
+
 async def _enrich_with_media_download(
     client: TelegramClient,
     message,
@@ -74,18 +119,23 @@ async def _enrich_with_media_download(
     media_dict["download_info"] = download_info
 
 
-async def _post_to_webhook_async(webhook_url: Optional[str], payload: Dict) -> None:
+async def _post_to_webhook_async(
+    webhook_url: Optional[str],
+    payload: Dict,
+    headers: Optional[Dict[str, str]] = None,
+) -> None:
     if not webhook_url:
         return
 
     loop = asyncio.get_running_loop()
+    headers_to_use = dict(headers or _build_headers())
 
     def _send():
         try:
             response = requests.post(
                 webhook_url,
                 json=payload,
-                headers={'Content-Type': 'application/json'},
+                headers=headers_to_use,
                 timeout=30,
             )
             logger.info("Sent message to %s, status: %s", webhook_url, response.status_code)
@@ -151,6 +201,7 @@ async def get_last_messages_async(entity, webhook_url, limit=2):
             entity_obj = entity
 
         my_channel = await client.get_entity(entity_obj)
+        webhook_headers = _build_headers() if webhook_url else None
 
         offset_id = 0
         all_messages = []
@@ -181,16 +232,8 @@ async def get_last_messages_async(entity, webhook_url, limit=2):
                 # Send to webhook if provided
                 if webhook_url:
                     try:
-                        os.makedirs('/app/data', exist_ok=True)
-                        response = requests.post(
-                            webhook_url,
-                            json=serialized_message,
-                            headers={'Content-Type': 'application/json'}
-                        )
-                        logger.info(f"Sent message to {webhook_url}, status: {response.status_code}")
-                        # Save last response
-                        with open('/app/data/last_response.json', 'w') as f:
-                            json.dump(serialized_message, f)
+                        await _post_to_webhook_async(webhook_url, serialized_message, headers=webhook_headers)
+                        await _store_last_response_async(serialized_message)
                     except Exception as e:
                         logger.error(f"Error sending to webhook: {e}")
             offset_id = messages[len(messages) - 1].id
@@ -204,7 +247,11 @@ async def get_last_messages_async(entity, webhook_url, limit=2):
         logger.info("Telegram client disconnected")
 
 
-async def listen_for_new_messages_async(entity, webhook_url: Optional[str]) -> None:
+async def listen_for_new_messages_async(
+    entity,
+    webhook_url: Optional[str],
+    headers: Optional[Dict[str, str]] = None,
+) -> None:
     api_id = os.getenv('TELEGRAM_API_ID')
     api_hash = os.getenv('TELEGRAM_API_HASH')
     phone = os.getenv('TELEGRAM_PHONE')
@@ -214,6 +261,7 @@ async def listen_for_new_messages_async(entity, webhook_url: Optional[str]) -> N
     session_dir = os.getenv('TELEGRAM_SESSION_DIR', '/app/data')
     media_dir = os.getenv('TELEGRAM_MEDIA_DIR', '/app/data/media')
     media_base_url = os.getenv('MEDIA_BASE_URL')
+    headers = headers or _build_headers('LISTENER_WEBHOOK_HEADERS')
 
     if not os.path.isabs(session_file):
         session_path = os.path.join(session_dir, session_file)
@@ -249,7 +297,7 @@ async def listen_for_new_messages_async(entity, webhook_url: Optional[str]) -> N
             message = event.message
             serialized_message = json.loads(json.dumps(message.to_dict(), cls=DateTimeEncoder))
             await _enrich_with_media_download(client, message, serialized_message, media_dir, media_base_url)
-            await _post_to_webhook_async(webhook_url, serialized_message)
+            await _post_to_webhook_async(webhook_url, serialized_message, headers=headers)
             await _store_last_response_async(serialized_message)
 
         client.add_event_handler(_handle_event, events.NewMessage(chats=target))

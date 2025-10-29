@@ -25,8 +25,10 @@ The project ships with a Docker image ready for production deployment (e.g. Dokp
 | `TELEGRAM_SESSION_DIR` | ➖ | Directory that contains the session file (defaults to `/app/data`) |
 | `TELEGRAM_MEDIA_DIR` | ➖ | Directory where downloaded media (photos/documents) are stored (defaults to `/app/data/media`) |
 | `MEDIA_BASE_URL` | ➖ | Public base URL that maps to `TELEGRAM_MEDIA_DIR` for exposing downloadable links |
+| `WEBHOOK_HEADERS` | ➖ | Extra headers (JSON or comma-separated) sent with every webhook POST |
 | `TELEGRAM_LISTENER_ENTITY` | ➖ | Channel/group to monitor for live updates (username like `@channel` or numeric ID) |
 | `LISTENER_WEBHOOK_URL` | ➖ | Webhook that receives live updates (defaults to `N8N_WEBHOOK_URL` when omitted) |
+| `LISTENER_WEBHOOK_HEADERS` | ➖ | Additional headers applied only to the listener webhook (merges with `WEBHOOK_HEADERS`) |
 | `API_KEY` | ✅ | Shared secret required in the `X-API-Key` header |
 | `N8N_WEBHOOK_URL` | ➖ | Default webhook invoked when `webhook_url` is omitted |
 
@@ -108,6 +110,24 @@ The generated session file must accompany your deployment; without it Telethon w
    Expect a JSON array with the latest messages. A `500` with `Telegram client not authorized` means the session file was not found; a `502` usually means the internal port is misconfigured.
 
 If you edit environment variables or mounts in Dokploy, click *Redeploy* afterwards so the container picks up the new configuration.
+
+---
+
+## Real-time listener
+
+When you want the service to push every new message from a specific Telegram channel or group to a webhook without polling the `/trigger` endpoint, set the following variables:
+
+```bash
+TELEGRAM_LISTENER_ENTITY=@your_channel
+LISTENER_WEBHOOK_URL=https://n8n.domain.com/webhook/telegram-live  # optional, falls back to N8N_WEBHOOK_URL
+# Optional auth headers
+# WEBHOOK_HEADERS={"Authorization": "Bearer <token>"}
+# LISTENER_WEBHOOK_HEADERS={"Authorization": "Bearer <live-token>"}
+```
+
+On startup the app spawns a daemon thread that keeps a Telethon client connected, listens for `NewMessage` events, downloads associated media (using the `TELEGRAM_MEDIA_DIR`/`MEDIA_BASE_URL` settings if applicable), and POSTs the payload to the configured webhook. The last pushed payload is also stored in `data/last_response.json` for inspection through the root endpoint when authenticated.
+
+> ℹ️ Running the Flask development server with the reloader may instantiate the listener twice. For production use Gunicorn (as provided in the Dockerfile) or disable the reloader when testing the listener locally.
 
 ---
 
