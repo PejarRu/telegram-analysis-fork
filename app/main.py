@@ -3,7 +3,11 @@ import os
 import logging
 import json
 from dotenv import load_dotenv
-from .ChannelMessages import get_last_messages, start_listener
+from .ChannelMessages import (
+    get_last_messages,
+    start_listener,
+    get_message_by_id,
+)
 
 # Load environment variables
 load_dotenv()
@@ -36,17 +40,23 @@ else:
 
 @app.before_request
 def check_api_key():
-    if request.method == 'POST' and request.path == '/trigger':
-        # Check X-API-Key header or Authorization Bearer token
-        auth_header = request.headers.get('X-API-Key')
-        bearer_token = None
-        auth_bearer = request.headers.get('Authorization')
-        if auth_bearer and auth_bearer.startswith('Bearer '):
-            bearer_token = auth_bearer[7:]  # Remove 'Bearer ' prefix
-        
-        if not ((auth_header and auth_header == api_key) or (bearer_token and bearer_token == api_key)):
-            logger.warning("Unauthorized access attempt")
-            return jsonify({'error': 'Unauthorized'}), 401
+    protected = {
+        ('/trigger', 'POST'),
+        ('/message', 'GET'),
+    }
+    request_signature = (request.path.rstrip('/') or '/', request.method)
+    if request_signature not in protected:
+        return
+
+    auth_header = request.headers.get('X-API-Key')
+    bearer_token = None
+    auth_bearer = request.headers.get('Authorization')
+    if auth_bearer and auth_bearer.startswith('Bearer '):
+        bearer_token = auth_bearer[7:]
+
+    if not ((auth_header and auth_header == api_key) or (bearer_token and bearer_token == api_key)):
+        logger.warning("Unauthorized access attempt at %s %s", request.method, request.path)
+        return jsonify({'error': 'Unauthorized'}), 401
 
 @app.route('/trigger', methods=['POST'])
 def trigger():
@@ -65,6 +75,34 @@ def trigger():
         return jsonify(messages), 200
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/message', methods=['GET'])
+def get_message():
+    entity = request.args.get('entity')
+    message_id = request.args.get('message_id')
+    webhook_url = request.args.get('webhook_url', webhook_endpoint)
+
+    if not entity:
+        return jsonify({'error': 'entity is required'}), 400
+
+    if not message_id:
+        return jsonify({'error': 'message_id is required'}), 400
+
+    try:
+        int_message_id = int(message_id)
+    except ValueError:
+        return jsonify({'error': 'message_id must be an integer'}), 400
+
+    try:
+        logger.info("Fetching message %s for entity %s", int_message_id, entity)
+        message = get_message_by_id(entity, int_message_id, webhook_url)
+        if not message:
+            return jsonify({'error': 'Message not found'}), 404
+        return jsonify([message]), 200
+    except Exception as e:  # noqa: BLE001
+        logger.error("Error fetching message %s for %s: %s", int_message_id, entity, e)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/', methods=['GET'])

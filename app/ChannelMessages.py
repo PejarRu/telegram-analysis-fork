@@ -247,6 +247,68 @@ async def get_last_messages_async(entity, webhook_url, limit=2):
         logger.info("Telegram client disconnected")
 
 
+async def get_message_by_id_async(entity, message_id, webhook_url=None):
+    api_id = os.getenv('TELEGRAM_API_ID')
+    api_hash = os.getenv('TELEGRAM_API_HASH')
+    phone = os.getenv('TELEGRAM_PHONE')
+    username = os.getenv('TELEGRAM_USERNAME')
+
+    session_file = os.getenv('TELEGRAM_SESSION_FILE', username)
+    session_dir = os.getenv('TELEGRAM_SESSION_DIR', '/app/data')
+    media_dir = os.getenv('TELEGRAM_MEDIA_DIR', '/app/data/media')
+    media_base_url = os.getenv('MEDIA_BASE_URL')
+
+    if not os.path.isabs(session_file):
+        session_path = os.path.join(session_dir, session_file)
+    else:
+        session_path = session_file
+
+    os.makedirs(os.path.dirname(session_path), exist_ok=True)
+
+    client = TelegramClient(session_path, api_id, api_hash)
+
+    try:
+        await client.connect()
+
+        if not await client.is_user_authorized():
+            msg = (
+                "Telegram client not authorized. Run `python -m app.auth` locally "
+                "to complete the login before triggering the service."
+            )
+            logger.error(msg)
+            raise RuntimeError(msg)
+
+        await client.start()
+        logger.info("Telegram get_message_by_id client started")
+
+        if entity.isdigit():
+            entity_obj = PeerChannel(int(entity))
+        else:
+            entity_obj = entity
+
+        target = await client.get_entity(entity_obj)
+        message = await client.get_messages(target, ids=int(message_id))
+
+        if isinstance(message, list):
+            message = message[0] if message else None
+
+        if not message:
+            return None
+
+        serialized_message = json.loads(json.dumps(message.to_dict(), cls=DateTimeEncoder))
+        await _enrich_with_media_download(client, message, serialized_message, media_dir, media_base_url)
+
+        if webhook_url:
+            headers = _build_headers()
+            await _post_to_webhook_async(webhook_url, serialized_message, headers=headers)
+            await _store_last_response_async(serialized_message)
+
+        return serialized_message
+    finally:
+        await client.disconnect()
+        logger.info("Telegram get_message_by_id client disconnected")
+
+
 async def listen_for_new_messages_async(
     entity,
     webhook_url: Optional[str],
@@ -313,6 +375,17 @@ def get_last_messages(entity, webhook_url, limit=2):
         try:
             messages = loop.run_until_complete(get_last_messages_async(entity, webhook_url, limit))
             return messages
+        finally:
+            loop.close()
+
+
+def get_message_by_id(entity, message_id, webhook_url=None):
+    with _client_lock:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            message = loop.run_until_complete(get_message_by_id_async(entity, message_id, webhook_url))
+            return message
         finally:
             loop.close()
 

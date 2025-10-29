@@ -145,6 +145,18 @@ Headers: `Content-Type: application/json`, and either `X-API-Key: <API_KEY>` or 
 
 Returns: JSON array with the requested messages. When `webhook_url` is provided, each message is also POSTed individually to that URL.
 
+### GET `/message`
+
+Fetch a single message by its Telegram ID while keeping the response format identical to the `/trigger` endpoint (i.e. an array of messages).
+
+| Query | Type | Required | Description |
+| --- | --- | --- | --- |
+| `entity` | string | ✅ | Channel username (`@channel`) or numeric ID |
+| `message_id` | integer | ✅ | Telegram message ID to fetch |
+| `webhook_url` | string | ➖ | Optional webhook override. Defaults to `N8N_WEBHOOK_URL` |
+
+Authentication works the same as `/trigger` (API key header or Bearer token). The endpoint returns `404` when the message is not found.
+
 ### GET `/`
 Health endpoint. Without authentication (`X-API-Key` header or `Authorization: Bearer` token) it responds with `{"status": "ok"}` for simple uptime checks. When properly authenticated it returns the last webhook payload (`last_response.json`) or `{"message": "No response yet"}` if nothing has been processed yet.
 
