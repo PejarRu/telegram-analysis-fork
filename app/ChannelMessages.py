@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 _client_lock = Lock()
 _listener_lock = Lock()
 _listener_thread: Optional[Thread] = None
+_listener_state: Dict[str, Optional[object]] = {
+    "loop": None,
+    "client": None,
+}
 
 
 # some functions to parse json date
@@ -158,6 +162,39 @@ async def _store_last_response_async(payload: Dict) -> None:
 
     await loop.run_in_executor(None, _write)
 
+
+async def _retrieve_message_with_client(
+    client: TelegramClient,
+    entity,
+    message_id: int,
+    webhook_url: Optional[str] = None,
+    headers: Optional[Dict[str, str]] = None,
+):
+    if entity.isdigit():
+        entity_obj = PeerChannel(int(entity))
+    else:
+        entity_obj = entity
+
+    target = await client.get_entity(entity_obj)
+    message = await client.get_messages(target, ids=int(message_id))
+
+    if isinstance(message, list):
+        message = message[0] if message else None
+
+    if not message:
+        return None
+
+    serialized_message = json.loads(json.dumps(message.to_dict(), cls=DateTimeEncoder))
+    await _enrich_with_media_download(client, message, serialized_message, media_dir, media_base_url)
+
+    if webhook_url:
+        effective_headers = headers or _build_headers()
+        await _post_to_webhook_async(webhook_url, serialized_message, headers=effective_headers)
+        await _store_last_response_async(serialized_message)
+
+    return serialized_message
+
+
 async def get_last_messages_async(entity, webhook_url, limit=2):
     # Reading environment variables inside function
     api_id = os.getenv('TELEGRAM_API_ID')
@@ -281,29 +318,7 @@ async def get_message_by_id_async(entity, message_id, webhook_url=None):
         await client.start()
         logger.info("Telegram get_message_by_id client started")
 
-        if entity.isdigit():
-            entity_obj = PeerChannel(int(entity))
-        else:
-            entity_obj = entity
-
-        target = await client.get_entity(entity_obj)
-        message = await client.get_messages(target, ids=int(message_id))
-
-        if isinstance(message, list):
-            message = message[0] if message else None
-
-        if not message:
-            return None
-
-        serialized_message = json.loads(json.dumps(message.to_dict(), cls=DateTimeEncoder))
-        await _enrich_with_media_download(client, message, serialized_message, media_dir, media_base_url)
-
-        if webhook_url:
-            headers = _build_headers()
-            await _post_to_webhook_async(webhook_url, serialized_message, headers=headers)
-            await _store_last_response_async(serialized_message)
-
-        return serialized_message
+        return await _retrieve_message_with_client(client, entity, message_id, webhook_url)
     finally:
         await client.disconnect()
         logger.info("Telegram get_message_by_id client disconnected")
@@ -347,6 +362,11 @@ async def listen_for_new_messages_async(
         await client.start()
         logger.info("Telegram listener client started")
 
+        loop = asyncio.get_running_loop()
+        with _listener_lock:
+            _listener_state["loop"] = loop
+            _listener_state["client"] = client
+
         if entity.isdigit():
             entity_obj = PeerChannel(int(entity))
         else:
@@ -365,6 +385,9 @@ async def listen_for_new_messages_async(
         client.add_event_handler(_handle_event, events.NewMessage(chats=target))
         await client.run_until_disconnected()
     finally:
+        with _listener_lock:
+            if _listener_state.get("client") is client:
+                _listener_state.update({"loop": None, "client": None})
         await client.disconnect()
         logger.info("Telegram listener client disconnected")
 
@@ -380,6 +403,20 @@ def get_last_messages(entity, webhook_url, limit=2):
 
 
 def get_message_by_id(entity, message_id, webhook_url=None):
+    with _listener_lock:
+        listener_client = _listener_state.get("client")
+        listener_loop = _listener_state.get("loop")
+
+    if listener_client and listener_loop:
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                _retrieve_message_with_client(listener_client, entity, message_id, webhook_url),
+                listener_loop,
+            )
+            return future.result()
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Listener client retrieval failed: %s", exc)
+
     with _client_lock:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
