@@ -23,6 +23,8 @@ The project ships with a Docker image ready for production deployment (e.g. Dokp
 | `TELEGRAM_USERNAME` | ✅ | Username used for the Telethon session |
 | `TELEGRAM_SESSION_FILE` | ➖ | Session file name or absolute path (defaults to `TELEGRAM_USERNAME` inside `/app/data`) |
 | `TELEGRAM_SESSION_DIR` | ➖ | Directory that contains the session file (defaults to `/app/data`) |
+| `TELEGRAM_MEDIA_DIR` | ➖ | Directory where downloaded media (photos/documents) are stored (defaults to `/app/data/media`) |
+| `MEDIA_BASE_URL` | ➖ | Public base URL that maps to `TELEGRAM_MEDIA_DIR` for exposing downloadable links |
 | `API_KEY` | ✅ | Shared secret required in the `X-API-Key` header |
 | `N8N_WEBHOOK_URL` | ➖ | Default webhook invoked when `webhook_url` is omitted |
 
