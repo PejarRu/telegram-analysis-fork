@@ -25,6 +25,8 @@ The project ships with a Docker image ready for production deployment (e.g. Dokp
 | `TELEGRAM_SESSION_DIR` | ➖ | Directory that contains the session file (defaults to `/app/data`) |
 | `TELEGRAM_MEDIA_DIR` | ➖ | Directory where downloaded media (photos/documents) are stored (defaults to `/app/data/media`) |
 | `MEDIA_BASE_URL` | ➖ | Public base URL that maps to `TELEGRAM_MEDIA_DIR` for exposing downloadable links |
+| `TELEGRAM_LISTENER_ENTITY` | ➖ | Channel/group to monitor for live updates (username like `@channel` or numeric ID) |
+| `LISTENER_WEBHOOK_URL` | ➖ | Webhook that receives live updates (defaults to `N8N_WEBHOOK_URL` when omitted) |
 | `API_KEY` | ✅ | Shared secret required in the `X-API-Key` header |
 | `N8N_WEBHOOK_URL` | ➖ | Default webhook invoked when `webhook_url` is omitted |
 
@@ -81,10 +83,6 @@ The generated session file must accompany your deployment; without it Telethon w
    - Wait until Dokploy reports `Docker build completed` and `1/1` replicas.
 6. **Validate the container**
    - SSH into the VPS and run:
-     ```bash
-     docker service ls
-     docker service logs <service-name> -f
-     ```
    - Optional request from inside the container:
      ```bash
      docker ps --filter label=com.docker.swarm.service.name=<service-name>
@@ -105,7 +103,6 @@ The generated session file must accompany your deployment; without it Telethon w
    # Or using Authorization Bearer token
    curl -X POST https://your-domain/trigger \
      -H 'Content-Type: application/json' \
-     -H 'Authorization: Bearer <your api key>' \
      -d '{"entity": "@telegram", "limit": 1}'
    ```
    Expect a JSON array with the latest messages. A `500` with `Telegram client not authorized` means the session file was not found; a `502` usually means the internal port is misconfigured.
@@ -129,7 +126,6 @@ Headers: `Content-Type: application/json`, and either `X-API-Key: <API_KEY>` or 
 Returns: JSON array with the requested messages. When `webhook_url` is provided, each message is also POSTed individually to that URL.
 
 ### GET `/`
-
 Health endpoint. Without authentication (`X-API-Key` header or `Authorization: Bearer` token) it responds with `{"status": "ok"}` for simple uptime checks. When properly authenticated it returns the last webhook payload (`last_response.json`) or `{"message": "No response yet"}` if nothing has been processed yet.
 
 ---
@@ -144,7 +140,6 @@ Health endpoint. Without authentication (`X-API-Key` header or `Authorization: B
 ---
 
 ## Troubleshooting quick reference
-
 - **`502 Bad Gateway` from Traefik** → internal port is not set to `8000`, or the service is restarting.
 - **`Telegram client not authorized`** → mount the session file in `/app/data` and set `TELEGRAM_SESSION_FILE`.
 - **Container unhealthy** → check the health check by running the inline Python snippet above; confirm Telegram credentials in the environment.

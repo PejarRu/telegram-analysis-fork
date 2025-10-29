@@ -3,7 +3,7 @@ import os
 import logging
 import json
 from dotenv import load_dotenv
-from .ChannelMessages import get_last_messages
+from .ChannelMessages import get_last_messages, start_listener
 
 # Load environment variables
 load_dotenv()
@@ -23,6 +23,16 @@ phone = os.getenv('TELEGRAM_PHONE')
 username = os.getenv('TELEGRAM_USERNAME')
 webhook_endpoint = os.getenv('N8N_WEBHOOK_URL')
 api_key = os.getenv('API_KEY')  # Nueva variable para autenticación
+listener_entity = os.getenv('TELEGRAM_LISTENER_ENTITY')
+listener_webhook = os.getenv('LISTENER_WEBHOOK_URL') or webhook_endpoint
+
+if listener_entity:
+    try:
+        start_listener(listener_entity, listener_webhook)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to start Telegram listener: %s", exc)
+else:
+    logger.info("Telegram listener inactive. Set TELEGRAM_LISTENER_ENTITY in the environment to enable it.")
 
 @app.before_request
 def check_api_key():
