@@ -6,6 +6,23 @@ The project ships with a Docker image ready for production deployment (e.g. Dokp
 
 ---
 
+## Project layout
+
+```
+app/
+   main.py               # Flask entrypoint + HTTP routes
+   config.py             # Settings dataclass loading environment variables
+   services/
+      telegram.py         # Shared Telethon client, history fetcher, listener
+      webhook.py          # Webhook header parsing and async delivery
+ChannelUsers.py         # Helper script (example usage outside the API)
+data/                   # Session files, downloaded media, last webhook payload
+```
+
+The Flask app instantiates `TelegramService` and `WebhookService` once at startup so that every HTTP request, background listener, and webhook call share the same Telethon client and configuration.
+
+---
+
 ## Requirements
 
 - Telegram API credentials: `api_id` and `api_hash` from https://my.telegram.org.
@@ -23,6 +40,7 @@ The project ships with a Docker image ready for production deployment (e.g. Dokp
 | `TELEGRAM_USERNAME` | ✅ | Username used for the Telethon session |
 | `TELEGRAM_SESSION_FILE` | ➖ | Session file name or absolute path (defaults to `TELEGRAM_USERNAME` inside `/app/data`) |
 | `TELEGRAM_SESSION_DIR` | ➖ | Directory that contains the session file (defaults to `/app/data`) |
+| `DATA_DIR` | ➖ | Base directory for persisted data such as `last_response.json` (defaults to `TELEGRAM_SESSION_DIR`) |
 | `TELEGRAM_MEDIA_DIR` | ➖ | Directory where downloaded media (photos/documents) are stored (defaults to `/app/data/media`) |
 | `MEDIA_BASE_URL` | ➖ | Public base URL that maps to `TELEGRAM_MEDIA_DIR` for exposing downloadable links |
 | `WEBHOOK_HEADERS` | ➖ | Extra headers (JSON or comma-separated) sent with every webhook POST |
@@ -38,18 +56,23 @@ Copy `.env.example` to `.env`, fill it with your values, and keep the file out o
 
 ## Local setup (optional but recommended)
 
-1. **Create and activate a virtualenv**
+1. **Copy the sample env file**
+   ```bash
+   cp .env.example .env
+   ```
+   Update the new `.env` with your credentials, webhook defaults, and listener options.
+2. **Create and activate a virtualenv**
    ```bash
    python -m venv .venv
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
-2. **Authorise Telethon**
+3. **Authorise Telethon**
    ```bash
    python -m app.auth
    ```
    Enter the OTP you receive from Telegram (or provide `TELEGRAM_LOGIN_CODE` in the environment). The command writes the session file, typically `@username.session`, to the project root.
-3. *(Optional)* **Run locally with Docker Compose**
+4. *(Optional)* **Run locally with Docker Compose**
    ```bash
    docker compose up --build
    ```
@@ -57,6 +80,30 @@ Copy `.env.example` to `.env`, fill it with your values, and keep the file out o
    - Stop the stack with `Ctrl+C` when you are done.
 
 The generated session file must accompany your deployment; without it Telethon will refuse to run inside the container.
+
+---
+
+## Running the API locally
+
+With the virtualenv active and `.env` configured, start the Flask development server:
+
+```bash
+python -m app.main
+```
+
+The app listens on `http://127.0.0.1:5000/`. Sample requests:
+
+```bash
+curl -X POST http://127.0.0.1:5000/trigger \
+  -H 'Content-Type: application/json' \
+  -H "X-API-Key: ${API_KEY}" \
+  -d '{"entity": "@telegram", "limit": 2}'
+
+curl "http://127.0.0.1:5000/message?entity=@telegram&message_id=123" \
+  -H "X-API-Key: ${API_KEY}"
+```
+
+Set `TELEGRAM_LISTENER_ENTITY` (and optionally `LISTENER_WEBHOOK_URL`) in the environment before launching the server if you want the background listener to stream new messages to your webhook while you develop locally. Disable the Flask reloader (`FLASK_ENV=production python -m app.main`) to avoid spawning two listeners.
 
 ---
 

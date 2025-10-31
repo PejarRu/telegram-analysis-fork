@@ -1,16 +1,13 @@
 from flask import Flask, request, jsonify
-import os
 import logging
 import json
 from dotenv import load_dotenv
-from .ChannelMessages import (
-    get_last_messages,
-    start_listener,
-    get_message_by_id,
-)
 
-# Load environment variables
 load_dotenv()
+
+from .config import settings  # noqa: E402
+from .services.webhook import WebhookService  # noqa: E402
+from .services.telegram import TelegramService  # noqa: E402
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -20,23 +17,8 @@ logger.info("Starting Flask app...")
 
 app = Flask(__name__)
 
-# Reading environment variables
-api_id = os.getenv('TELEGRAM_API_ID')
-api_hash = os.getenv('TELEGRAM_API_HASH')
-phone = os.getenv('TELEGRAM_PHONE')
-username = os.getenv('TELEGRAM_USERNAME')
-webhook_endpoint = os.getenv('N8N_WEBHOOK_URL')
-api_key = os.getenv('API_KEY')  # Nueva variable para autenticación
-listener_entity = os.getenv('TELEGRAM_LISTENER_ENTITY')
-listener_webhook = os.getenv('LISTENER_WEBHOOK_URL') or webhook_endpoint
-
-if listener_entity:
-    try:
-        start_listener(listener_entity, listener_webhook)
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Failed to start Telegram listener: %s", exc)
-else:
-    logger.info("Telegram listener inactive. Set TELEGRAM_LISTENER_ENTITY in the environment to enable it.")
+webhook_service = WebhookService(settings.webhook_headers_raw, settings.data_dir)
+telegram_service = TelegramService(settings, webhook_service)
 
 @app.before_request
 def check_api_key():
@@ -54,7 +36,7 @@ def check_api_key():
     if auth_bearer and auth_bearer.startswith('Bearer '):
         bearer_token = auth_bearer[7:]
 
-    if not ((auth_header and auth_header == api_key) or (bearer_token and bearer_token == api_key)):
+    if not ((auth_header and auth_header == settings.api_key) or (bearer_token and bearer_token == settings.api_key)):
         logger.warning("Unauthorized access attempt at %s %s", request.method, request.path)
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -65,12 +47,20 @@ def trigger():
         return jsonify({'error': 'entity is required'}), 400
 
     entity = data['entity']
-    webhook_url = data.get('webhook_url', webhook_endpoint)
-    limit = data.get('limit', 2)  # Default 2, configurable
+    webhook_url = data.get('webhook_url', settings.default_webhook)
+    limit = data.get('limit', 2)
+
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'limit must be an integer'}), 400
+
+    if limit < 1:
+        return jsonify({'error': 'limit must be greater than zero'}), 400
 
     try:
         logger.info(f"Processing request for entity: {entity}, limit: {limit}")
-        messages = get_last_messages(entity, webhook_url, limit=limit)
+        messages = telegram_service.get_last_messages(entity, limit, webhook_url)
         logger.info(f"Retrieved {len(messages)} messages")
         return jsonify(messages), 200
     except Exception as e:
@@ -82,7 +72,7 @@ def trigger():
 def get_message():
     entity = request.args.get('entity')
     message_id = request.args.get('message_id')
-    webhook_url = request.args.get('webhook_url', webhook_endpoint)
+    webhook_url = request.args.get('webhook_url', settings.default_webhook)
 
     if not entity:
         return jsonify({'error': 'entity is required'}), 400
@@ -97,7 +87,7 @@ def get_message():
 
     try:
         logger.info("Fetching message %s for entity %s", int_message_id, entity)
-        message = get_message_by_id(entity, int_message_id, webhook_url)
+        message = telegram_service.get_message_by_id(entity, int_message_id, webhook_url)
         if not message:
             return jsonify({'error': 'Message not found'}), 404
         return jsonify([message]), 200
@@ -114,11 +104,11 @@ def get_last_response():
     if auth_bearer and auth_bearer.startswith('Bearer '):
         bearer_token = auth_bearer[7:]  # Remove 'Bearer ' prefix
     
-    if not ((auth_header and auth_header == api_key) or (bearer_token and bearer_token == api_key)):
+    if not ((auth_header and auth_header == settings.api_key) or (bearer_token and bearer_token == settings.api_key)):
         return jsonify({'status': 'ok'}), 200
 
     try:
-        with open('/app/data/last_response.json', 'r') as f:
+        with open(f"{settings.data_dir}/last_response.json", 'r') as f:
             data = json.load(f)
         return jsonify(data), 200
     except FileNotFoundError:
