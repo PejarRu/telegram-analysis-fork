@@ -14,3 +14,9 @@ anaconda-project.yml
 *.ipynb
 config.ini
 .env
+*/__pycache__/*
+app/services/__pycache__/
+app/__pycache__/
+app/__pycache__/*
+
+app/__pycache__/main.cpython-313.pyc
