@@ -11,6 +11,8 @@ mkdocs serve
 
 Visita `http://127.0.0.1:8000/` para previsualizar y `mkdocs build` o `mkdocs gh-deploy` para publicar (por ejemplo en GitHub Pages).
 
+¿Quieres automatizarlo? El workflow `Deploy docs` (`.github/workflows/docs.yml`) instala MkDocs Material y ejecuta `mkdocs gh-deploy --force` en cada push a `master`. Solo tienes que habilitar **Pages → Deploy from branch → gh-pages** en la configuración del repositorio.
+
 The project ships with a Docker image ready for production deployment (e.g. Dokploy + Traefik) and relies on a pre-authorised Telethon session file that is mounted into the container.
 
 ---
