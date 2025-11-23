@@ -1,6 +1,6 @@
 # Telegram Analysis API
 
-Service that fetches the latest messages from Telegram channels or groups using Telethon, optionally relays them to a webhook, and exposes an HTTP API.
+Service that fetches the latest messages from Telegram channels or groups using Telethon, optionally relays them to a webhook, and exposes an HTTP API. The root URL (`/`) now renders a tiny HTML documentation page (versioned via `app/version.py`) so you can quickly share usage notes with teammates after deploying.
 
 The project ships with a Docker image ready for production deployment (e.g. Dokploy + Traefik) and relies on a pre-authorised Telethon session file that is mounted into the container.
 
@@ -174,7 +174,7 @@ LISTENER_WEBHOOK_URL=https://n8n.domain.com/webhook/telegram-live  # optional, f
 # LISTENER_WEBHOOK_HEADERS={"Authorization": "Bearer <live-token>"}
 ```
 
-On startup the app spawns a daemon thread that keeps a Telethon client connected, listens for `NewMessage` events, downloads associated media (using the `TELEGRAM_MEDIA_DIR`/`MEDIA_BASE_URL` settings if applicable), and POSTs the payload to the configured webhook. The last pushed payload is also stored in `data/last_response.json` for inspection through the root endpoint when authenticated.
+On startup the app spawns a daemon thread that keeps a Telethon client connected, listens for `NewMessage` events, downloads associated media (using the `TELEGRAM_MEDIA_DIR`/`MEDIA_BASE_URL` settings if applicable), and POSTs the payload to the configured webhook. The last pushed payload is also stored in `data/last_response.json` and can be retrieved at `GET /last-response` with your API key.
 
 > ℹ️ Running the Flask development server with the reloader may instantiate the listener twice. For production use Gunicorn (as provided in the Dockerfile) or disable the reloader when testing the listener locally.
 
@@ -213,7 +213,10 @@ Every media attachment now includes a `signed_url` that points to `/media/<token
 If you already expose `TELEGRAM_MEDIA_DIR` through a CDN using `MEDIA_BASE_URL`, both URLs are present in the payload (`signed_url` and absolute `url`) so you can pick the best option for your flow.
 
 ### GET `/`
-Health endpoint. Without authentication (`X-API-Key` header or `Authorization: Bearer` token) it responds with `{"status": "ok"}` for simple uptime checks. When properly authenticated it returns the last webhook payload (`last_response.json`) or `{"message": "No response yet"}` if nothing has been processed yet.
+Renders the inline documentation page with the current application version, authentication hints, and sample curl commands for every endpoint. The page is static HTML (no JS) so it can be safely exposed through Traefik or any reverse proxy.
+
+### GET `/last-response`
+Returns the contents of `data/last_response.json`, i.e. the last payload sent to a webhook. Requires the API key (either `X-API-Key` or `Authorization: Bearer`). A `200` with `{ "message": "No response yet" }` means nothing has been persisted yet.
 
 ---
 

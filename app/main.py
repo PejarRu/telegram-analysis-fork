@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, render_template_string
 import logging
 import json
 from dotenv import load_dotenv
@@ -10,6 +10,7 @@ load_dotenv()
 from .config import settings  # noqa: E402
 from .services.webhook import WebhookService  # noqa: E402
 from .services.telegram import TelegramService  # noqa: E402
+from .version import APP_VERSION  # noqa: E402
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -22,11 +23,92 @@ app = Flask(__name__)
 webhook_service = WebhookService(settings.webhook_headers_raw, settings.data_dir)
 telegram_service = TelegramService(settings, webhook_service)
 
+DOCS_TEMPLATE = """
+<!doctype html>
+<html lang='en'>
+    <head>
+        <meta charset='utf-8' />
+        <meta name='viewport' content='width=device-width, initial-scale=1' />
+        <title>Telegram Analysis API · v{{ version }}</title>
+        <style>
+            body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#0f172a; background:#f9fafb; margin:0; padding:2rem; }
+            h1 { margin-top:0; }
+            .card { background:#fff; border-radius:16px; padding:2.5rem; box-shadow:0 25px 65px rgba(15,23,42,.12); max-width:960px; margin:auto; }
+            code, pre { font-family:'JetBrains Mono','SFMono-Regular',Consolas,monospace; font-size:.95rem; }
+            pre { background:#0f172a; color:#f8fafc; padding:1rem; border-radius:10px; overflow:auto; }
+            .endpoint { margin-bottom:1.75rem; }
+            .badge { display:inline-block; padding:0.2rem 0.65rem; border-radius:999px; font-size:.75rem; font-weight:600; color:#fff; margin-right:.5rem; }
+            .badge.GET { background:#0ea5e9; }
+            .badge.POST { background:#22c55e; }
+            .meta { color:#64748b; font-size:.95rem; }
+            a { color:#2563eb; }
+        </style>
+    </head>
+    <body>
+        <div class='card'>
+            <h1>Telegram Analysis API</h1>
+            <p class='meta'>Version {{ version }} · Single Telethon client + Flask proxy</p>
+            <p>Usa la cabecera <code>X-API-Key</code> o <code>Authorization: Bearer</code> para autenticarte. Todos los endpoints devuelven JSON.</p>
+
+            {% for ep in endpoints %}
+            <div class='endpoint'>
+                <div>
+                    <span class='badge {{ ep.method }}'>{{ ep.method }}</span>
+                    <strong>{{ ep.path }}</strong>
+                </div>
+                <p>{{ ep.description }}</p>
+                {% if ep.details %}<p class='meta'>{{ ep.details }}</p>{% endif %}
+                {% if ep.sample %}<pre>{{ ep.sample }}</pre>{% endif %}
+            </div>
+            {% endfor %}
+
+            <p class='meta'>¿Necesitas el último payload recibido? Haz una petición autenticada a <code>GET /last-response</code>.</p>
+        </div>
+    </body>
+</html>
+"""
+
+DOCS_ENDPOINTS = [
+        {
+                "method": "POST",
+                "path": "/trigger",
+                "description": "Recupera los últimos mensajes del canal/grupo y (opcional) los reenvía a un webhook.",
+                "details": "Body JSON con 'entity', 'limit' (2 por defecto) y 'webhook_url' opcional.",
+                "sample": """curl -X POST https://<host>/trigger \
+    -H 'Content-Type: application/json' \
+    -H 'X-API-Key: <api_key>' \
+    -d '{\"entity\": \"@canal\", \"limit\": 2}'""",
+        },
+        {
+                "method": "GET",
+                "path": "/message",
+                "description": "Devuelve un único mensaje por ID manteniendo el formato de /trigger.",
+                "details": "Query params: entity, message_id, webhook_url opcional.",
+                "sample": """curl 'https://<host>/message?entity=@canal&message_id=123' \
+    -H 'X-API-Key: <api_key>'""",
+        },
+        {
+                "method": "GET",
+                "path": "/media/<token>",
+                "description": "Sirve archivos descargados mediante enlaces firmados (campo signed_url del payload).",
+                "details": "Los tokens expiran tras MEDIA_URL_TTL_SECONDS y no requieren cabeceras extra.",
+                "sample": "curl -L 'https://<host>/media/<token>'",
+        },
+        {
+                "method": "GET",
+                "path": "/last-response",
+                "description": "Entrega el último payload persistido en disco (requiere API key).",
+                "details": "Útil para depurar qué se envió a n8n u otro webhook.",
+                "sample": "curl https://<host>/last-response -H 'X-API-Key: <api_key>'",
+        },
+]
+
 @app.before_request
 def check_api_key():
     protected = {
         ('/trigger', 'POST'),
         ('/message', 'GET'),
+        ('/last-response', 'GET'),
     }
     request_signature = (request.path.rstrip('/') or '/', request.method)
     if request_signature not in protected:
@@ -113,25 +195,24 @@ def serve_media(token: str):
     return send_file(media_path, as_attachment=True)
 
 @app.route('/', methods=['GET'])
-def get_last_response():
-    # Check X-API-Key header or Authorization Bearer token
-    auth_header = request.headers.get('X-API-Key')
-    bearer_token = None
-    auth_bearer = request.headers.get('Authorization')
-    if auth_bearer and auth_bearer.startswith('Bearer '):
-        bearer_token = auth_bearer[7:]  # Remove 'Bearer ' prefix
-    
-    if not ((auth_header and auth_header == settings.api_key) or (bearer_token and bearer_token == settings.api_key)):
-        return jsonify({'status': 'ok'}), 200
+def docs_home():
+    return render_template_string(
+        DOCS_TEMPLATE,
+        version=APP_VERSION,
+        endpoints=DOCS_ENDPOINTS,
+    )
 
+
+@app.route('/last-response', methods=['GET'])
+def get_last_response():
     try:
-        with open(f"{settings.data_dir}/last_response.json", 'r') as f:
+        with open(os.path.join(settings.data_dir, 'last_response.json'), 'r') as f:
             data = json.load(f)
         return jsonify(data), 200
     except FileNotFoundError:
         return jsonify({'message': 'No response yet'}), 200
     except Exception as e:
-        logger.error(f"Error reading last response: {str(e)}")
+        logger.error("Error reading last response: %s", e)
         return jsonify({'error': 'Internal error'}), 500
 
 if __name__ == '__main__':
