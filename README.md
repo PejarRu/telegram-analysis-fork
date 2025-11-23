@@ -43,6 +43,8 @@ The Flask app instantiates `TelegramService` and `WebhookService` once at startu
 | `DATA_DIR` | ➖ | Base directory for persisted data such as `last_response.json` (defaults to `TELEGRAM_SESSION_DIR`) |
 | `TELEGRAM_MEDIA_DIR` | ➖ | Directory where downloaded media (photos/documents) are stored (defaults to `/app/data/media`) |
 | `MEDIA_BASE_URL` | ➖ | Public base URL that maps to `TELEGRAM_MEDIA_DIR` for exposing downloadable links |
+| `MEDIA_URL_TTL_SECONDS` | ➖ | Seconds a signed `/media/<token>` link remains valid (defaults to `3600`) |
+| `MEDIA_SIGNING_SECRET` | ➖ | Secret used to sign media tokens (defaults to `API_KEY`) |
 | `WEBHOOK_HEADERS` | ➖ | Extra headers (JSON or comma-separated) sent with every webhook POST |
 | `TELEGRAM_LISTENER_ENTITY` | ➖ | Channel/group to monitor for live updates (username like `@channel` or numeric ID) |
 | `LISTENER_WEBHOOK_URL` | ➖ | Webhook that receives live updates (defaults to `N8N_WEBHOOK_URL` when omitted) |
@@ -203,6 +205,12 @@ Fetch a single message by its Telegram ID while keeping the response format iden
 | `webhook_url` | string | ➖ | Optional webhook override. Defaults to `N8N_WEBHOOK_URL` |
 
 Authentication works the same as `/trigger` (API key header or Bearer token). The endpoint returns `404` when the message is not found.
+
+### GET `/media/<token>`
+
+Every media attachment now includes a `signed_url` that points to `/media/<token>`. Tokens are signed with `MEDIA_SIGNING_SECRET` (defaults to `API_KEY`) and expire after `MEDIA_URL_TTL_SECONDS` (60 minutes by default). You can safely embed the relative link in dashboards or forward it with your webhook payloads; unauthenticated users will only access the file while the token remains valid.
+
+If you already expose `TELEGRAM_MEDIA_DIR` through a CDN using `MEDIA_BASE_URL`, both URLs are present in the payload (`signed_url` and absolute `url`) so you can pick the best option for your flow.
 
 ### GET `/`
 Health endpoint. Without authentication (`X-API-Key` header or `Authorization: Bearer` token) it responds with `{"status": "ok"}` for simple uptime checks. When properly authenticated it returns the last webhook payload (`last_response.json`) or `{"message": "No response yet"}` if nothing has been processed yet.

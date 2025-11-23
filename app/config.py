@@ -14,6 +14,8 @@ class Settings:
     data_dir: str
     media_dir: str
     media_base_url: Optional[str]
+    media_signing_secret: str
+    media_url_ttl: int
     default_webhook: Optional[str]
     listener_entity: Optional[str]
     listener_webhook: Optional[str]
@@ -56,6 +58,15 @@ class Settings:
 
         data_dir = os.getenv("DATA_DIR", session_dir)
         media_dir = os.getenv("TELEGRAM_MEDIA_DIR", os.path.join(data_dir, "media"))
+        media_signing_secret = os.getenv("MEDIA_SIGNING_SECRET", api_key)
+
+        ttl_raw = os.getenv("MEDIA_URL_TTL_SECONDS", "3600")
+        try:
+            media_url_ttl = int(ttl_raw)
+        except ValueError as exc:  # noqa: BLE001
+            raise RuntimeError("MEDIA_URL_TTL_SECONDS must be an integer") from exc
+        if media_url_ttl <= 0:
+            raise RuntimeError("MEDIA_URL_TTL_SECONDS must be greater than zero")
 
         return cls(
             api_id=api_id,
@@ -67,6 +78,8 @@ class Settings:
             data_dir=data_dir,
             media_dir=media_dir,
             media_base_url=os.getenv("MEDIA_BASE_URL"),
+            media_signing_secret=media_signing_secret,
+            media_url_ttl=media_url_ttl,
             default_webhook=os.getenv("N8N_WEBHOOK_URL"),
             listener_entity=os.getenv("TELEGRAM_LISTENER_ENTITY"),
             listener_webhook=os.getenv("LISTENER_WEBHOOK_URL"),

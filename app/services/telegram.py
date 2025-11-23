@@ -6,6 +6,7 @@ from datetime import datetime
 from threading import Thread
 from typing import Dict, List, Optional
 
+from itsdangerous import BadSignature, URLSafeTimedSerializer
 from telethon import TelegramClient, events
 from telethon.tl.functions.messages import GetHistoryRequest
 from telethon.tl.types import MessageMediaDocument, MessageMediaPhoto, PeerChannel
@@ -33,6 +34,11 @@ class TelegramService:
         self._loop = asyncio.new_event_loop()
         self._thread = Thread(target=self._run_loop, name="TelegramServiceLoop", daemon=True)
         self._thread.start()
+
+        self._media_serializer = URLSafeTimedSerializer(
+            self._settings.media_signing_secret,
+            salt="telegram-analysis-media",
+        )
 
         init_future = asyncio.run_coroutine_threadsafe(self._initialise(), self._loop)
         init_future.result()
@@ -110,8 +116,14 @@ class TelegramService:
             "local_path": file_path,
         }
 
+        relative_path = os.path.relpath(file_path, self._settings.media_dir)
+        download_info["relative_path"] = relative_path
+
+        signed_url = self._build_signed_media_url(relative_path)
+        if signed_url:
+            download_info["signed_url"] = signed_url
+
         if self._settings.media_base_url:
-            relative_path = os.path.relpath(file_path, self._settings.media_dir)
             public_url = f"{self._settings.media_base_url.rstrip('/')}/{relative_path.replace(os.sep, '/')}"
             download_info["url"] = public_url
 
@@ -122,6 +134,28 @@ class TelegramService:
         payload = json.loads(json.dumps(message.to_dict(), cls=DateTimeEncoder))
         await self._enrich_with_media(message, payload)
         return payload
+
+    def _build_signed_media_url(self, relative_path: str) -> Optional[str]:
+        if not relative_path:
+            return None
+        token = self._media_serializer.dumps({"path": relative_path})
+        return f"/media/{token}"
+
+    def get_media_path_from_token(self, token: str) -> str:
+        data = self._media_serializer.loads(token, max_age=self._settings.media_url_ttl)
+        relative_path = data.get("path")
+        if not relative_path:
+            raise BadSignature("Missing path")
+
+        normalized = os.path.normpath(relative_path)
+        if normalized.startswith(".."):
+            raise BadSignature("Invalid path")
+
+        media_root = os.path.abspath(self._settings.media_dir)
+        absolute_path = os.path.abspath(os.path.join(media_root, normalized))
+        if not absolute_path.startswith(media_root):
+            raise BadSignature("Traversal detected")
+        return absolute_path
 
     async def _dispatch_webhook(self, payload: Dict, webhook_url: Optional[str], headers: Dict[str, str]) -> None:
         if not webhook_url:

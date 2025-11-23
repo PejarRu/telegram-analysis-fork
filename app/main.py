@@ -1,7 +1,9 @@
-from flask import Flask, request, jsonify
+import os
+from flask import Flask, request, jsonify, send_file
 import logging
 import json
 from dotenv import load_dotenv
+from itsdangerous import BadSignature, SignatureExpired
 
 load_dotenv()
 
@@ -94,6 +96,21 @@ def get_message():
     except Exception as e:  # noqa: BLE001
         logger.error("Error fetching message %s for %s: %s", int_message_id, entity, e)
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/media/<token>', methods=['GET'])
+def serve_media(token: str):
+    try:
+        media_path = telegram_service.get_media_path_from_token(token)
+    except SignatureExpired:
+        return jsonify({'error': 'Link expired'}), 410
+    except BadSignature:
+        return jsonify({'error': 'Invalid media link'}), 404
+
+    if not os.path.exists(media_path):
+        return jsonify({'error': 'File not found'}), 404
+
+    return send_file(media_path, as_attachment=True)
 
 @app.route('/', methods=['GET'])
 def get_last_response():
