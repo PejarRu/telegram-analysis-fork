@@ -2,6 +2,15 @@
 
 Service that fetches the latest messages from Telegram channels or groups using Telethon, optionally relays them to a webhook, and exposes an HTTP API. The root URL (`/`) now renders a tiny HTML documentation page (versioned via `app/version.py`) so you can quickly share usage notes with teammates after deploying.
 
+Need longer-form docs? The repo incluye un sitio de [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) listo para publicarse (`mkdocs.yml` + `docs/`).
+
+```bash
+pip install -r requirements-docs.txt
+mkdocs serve
+```
+
+Visita `http://127.0.0.1:8000/` para previsualizar y `mkdocs build` o `mkdocs gh-deploy` para publicar (por ejemplo en GitHub Pages).
+
 The project ships with a Docker image ready for production deployment (e.g. Dokploy + Traefik) and relies on a pre-authorised Telethon session file that is mounted into the container.
 
 ---
