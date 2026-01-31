@@ -8,6 +8,7 @@ on:
       - 'docs/**'
       - 'mkdocs.yml'
       - 'requirements-docs.txt'
+      - 'mkdocs-material-deps.txt'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -29,7 +30,7 @@ jobs:
       - name: Install MkDocs
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-docs.txt
+          if [ -f mkdocs-material-deps.txt ]; then pip install -r mkdocs-material-deps.txt; else pip install -r requirements-docs.txt; fi
 
       - name: Publish to GitHub Pages
         run: mkdocs gh-deploy --force --clean

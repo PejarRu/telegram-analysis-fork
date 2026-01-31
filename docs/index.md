@@ -43,13 +43,13 @@ curl "http://127.0.0.1:5000/message?entity=@telegram&message_id=123" \
 
 ## Endpoints principales
 
-| Método | Ruta | Descripción |
-| --- | --- | --- |
-| `POST` | `/trigger` | Recupera `limit` mensajes recientes y opcionalmente los envía a un webhook. |
-| `GET` | `/message` | Devuelve un mensaje concreto por ID manteniendo el formato de `/trigger`. |
-| `GET` | `/media/<token>` | Sirve archivos mediante enlaces firmados (`signed_url`). |
-| `GET` | `/last-response` | Expone el último payload persistido (requiere API key). |
-| `GET` | `/` | Página HTML con documentación y versión del servicio. |
+| Método | Ruta             | Descripción                                                                 |
+| ------ | ---------------- | --------------------------------------------------------------------------- |
+| `POST` | `/trigger`       | Recupera `limit` mensajes recientes y opcionalmente los envía a un webhook. |
+| `GET`  | `/message`       | Devuelve un mensaje concreto por ID manteniendo el formato de `/trigger`.   |
+| `GET`  | `/media/<token>` | Sirve archivos mediante enlaces firmados (`signed_url`).                    |
+| `GET`  | `/last-response` | Expone el último payload persistido (requiere API key).                     |
+| `GET`  | `/`              | Página HTML con documentación y versión del servicio.                       |
 
 Todos los endpoints salvo `/media/<token>` requieren `X-API-Key: <API_KEY>` o `Authorization: Bearer <API_KEY>`.
 
@@ -103,7 +103,7 @@ Recibirás el JSON almacenado o `{"message": "No response yet"}` si aún no exis
 Este sitio se genera con [MkDocs Material](https://squidfunk.github.io/mkdocs-material/). Para modificarlo:
 
 ```bash
-pip install -r requirements-docs.txt
+pip install -r mkdocs-material-deps.txt
 mkdocs serve
 ```
 

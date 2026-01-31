@@ -5,7 +5,7 @@ Service that fetches the latest messages from Telegram channels or groups using 
 Need longer-form docs? The repo incluye un sitio de [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) listo para publicarse (`mkdocs.yml` + `docs/`).
 
 ```bash
-pip install -r requirements-docs.txt
+pip install -r mkdocs-material-deps.txt
 mkdocs serve
 ```
 
@@ -43,25 +43,25 @@ The Flask app instantiates `TelegramService` and `WebhookService` once at startu
 
 ### Environment variables
 
-| Variable | Required | Description |
-| --- | --- | --- |
-| `TELEGRAM_API_ID` | ✅ | Telegram API ID |
-| `TELEGRAM_API_HASH` | ✅ | Telegram API hash |
-| `TELEGRAM_PHONE` | ✅ | Phone number including country code |
-| `TELEGRAM_USERNAME` | ✅ | Username used for the Telethon session |
-| `TELEGRAM_SESSION_FILE` | ➖ | Session file name or absolute path (defaults to `TELEGRAM_USERNAME` inside `/app/data`) |
-| `TELEGRAM_SESSION_DIR` | ➖ | Directory that contains the session file (defaults to `/app/data`) |
-| `DATA_DIR` | ➖ | Base directory for persisted data such as `last_response.json` (defaults to `TELEGRAM_SESSION_DIR`) |
-| `TELEGRAM_MEDIA_DIR` | ➖ | Directory where downloaded media (photos/documents) are stored (defaults to `/app/data/media`) |
-| `MEDIA_BASE_URL` | ➖ | Public base URL that maps to `TELEGRAM_MEDIA_DIR` for exposing downloadable links |
-| `MEDIA_URL_TTL_SECONDS` | ➖ | Seconds a signed `/media/<token>` link remains valid (defaults to `3600`) |
-| `MEDIA_SIGNING_SECRET` | ➖ | Secret used to sign media tokens (defaults to `API_KEY`) |
-| `WEBHOOK_HEADERS` | ➖ | Extra headers (JSON or comma-separated) sent with every webhook POST |
-| `TELEGRAM_LISTENER_ENTITY` | ➖ | Channel/group to monitor for live updates (username like `@channel` or numeric ID) |
-| `LISTENER_WEBHOOK_URL` | ➖ | Webhook that receives live updates (defaults to `N8N_WEBHOOK_URL` when omitted) |
-| `LISTENER_WEBHOOK_HEADERS` | ➖ | Additional headers applied only to the listener webhook (merges with `WEBHOOK_HEADERS`) |
-| `API_KEY` | ✅ | Shared secret required in the `X-API-Key` header |
-| `N8N_WEBHOOK_URL` | ➖ | Default webhook invoked when `webhook_url` is omitted |
+| Variable                   | Required | Description                                                                                         |
+| -------------------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `TELEGRAM_API_ID`          | ✅        | Telegram API ID                                                                                     |
+| `TELEGRAM_API_HASH`        | ✅        | Telegram API hash                                                                                   |
+| `TELEGRAM_PHONE`           | ✅        | Phone number including country code                                                                 |
+| `TELEGRAM_USERNAME`        | ✅        | Username used for the Telethon session                                                              |
+| `TELEGRAM_SESSION_FILE`    | ➖        | Session file name or absolute path (defaults to `TELEGRAM_USERNAME` inside `/app/data`)             |
+| `TELEGRAM_SESSION_DIR`     | ➖        | Directory that contains the session file (defaults to `/app/data`)                                  |
+| `DATA_DIR`                 | ➖        | Base directory for persisted data such as `last_response.json` (defaults to `TELEGRAM_SESSION_DIR`) |
+| `TELEGRAM_MEDIA_DIR`       | ➖        | Directory where downloaded media (photos/documents) are stored (defaults to `/app/data/media`)      |
+| `MEDIA_BASE_URL`           | ➖        | Public base URL that maps to `TELEGRAM_MEDIA_DIR` for exposing downloadable links                   |
+| `MEDIA_URL_TTL_SECONDS`    | ➖        | Seconds a signed `/media/<token>` link remains valid (defaults to `3600`)                           |
+| `MEDIA_SIGNING_SECRET`     | ➖        | Secret used to sign media tokens (defaults to `API_KEY`)                                            |
+| `WEBHOOK_HEADERS`          | ➖        | Extra headers (JSON or comma-separated) sent with every webhook POST                                |
+| `TELEGRAM_LISTENER_ENTITY` | ➖        | Channel/group to monitor for live updates (username like `@channel` or numeric ID)                  |
+| `LISTENER_WEBHOOK_URL`     | ➖        | Webhook that receives live updates (defaults to `N8N_WEBHOOK_URL` when omitted)                     |
+| `LISTENER_WEBHOOK_HEADERS` | ➖        | Additional headers applied only to the listener webhook (merges with `WEBHOOK_HEADERS`)             |
+| `API_KEY`                  | ✅        | Shared secret required in the `X-API-Key` header                                                    |
+| `N8N_WEBHOOK_URL`          | ➖        | Default webhook invoked when `webhook_url` is omitted                                               |
 
 Copy `.env.example` to `.env`, fill it with your values, and keep the file out of version control if it contains secrets.
 
@@ -195,11 +195,11 @@ On startup the app spawns a daemon thread that keeps a Telethon client connected
 
 ### POST `/trigger`
 
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `entity` | string | ✅ | Channel username (`@channel`) or numeric ID |
-| `webhook_url` | string | ➖ | Destination webhook. Defaults to `N8N_WEBHOOK_URL` if set |
-| `limit` | integer | ➖ | Number of messages to fetch (default 2) |
+| Field         | Type    | Required | Description                                               |
+| ------------- | ------- | -------- | --------------------------------------------------------- |
+| `entity`      | string  | ✅        | Channel username (`@channel`) or numeric ID               |
+| `webhook_url` | string  | ➖        | Destination webhook. Defaults to `N8N_WEBHOOK_URL` if set |
+| `limit`       | integer | ➖        | Number of messages to fetch (default 2)                   |
 
 Headers: `Content-Type: application/json`, and either `X-API-Key: <API_KEY>` or `Authorization: Bearer <API_KEY>`.
 
@@ -209,11 +209,11 @@ Returns: JSON array with the requested messages. When `webhook_url` is provided,
 
 Fetch a single message by its Telegram ID while keeping the response format identical to the `/trigger` endpoint (i.e. an array of messages).
 
-| Query | Type | Required | Description |
-| --- | --- | --- | --- |
-| `entity` | string | ✅ | Channel username (`@channel`) or numeric ID |
-| `message_id` | integer | ✅ | Telegram message ID to fetch |
-| `webhook_url` | string | ➖ | Optional webhook override. Defaults to `N8N_WEBHOOK_URL` |
+| Query         | Type    | Required | Description                                              |
+| ------------- | ------- | -------- | -------------------------------------------------------- |
+| `entity`      | string  | ✅        | Channel username (`@channel`) or numeric ID              |
+| `message_id`  | integer | ✅        | Telegram message ID to fetch                             |
+| `webhook_url` | string  | ➖        | Optional webhook override. Defaults to `N8N_WEBHOOK_URL` |
 
 Authentication works the same as `/trigger` (API key header or Bearer token). The endpoint returns `404` when the message is not found.
 
