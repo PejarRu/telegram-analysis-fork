@@ -89,7 +89,7 @@ class TelegramService:
             entity_obj = entity
         return await self._client.get_entity(entity_obj)
 
-    async def _enrich_with_media(self, message, serialized: Dict) -> None:
+    async def _enrich_with_media(self, message, serialized: Dict, entity: Optional[str] = None) -> None:
         media = getattr(message, "media", None)
         if not media:
             return
@@ -119,7 +119,7 @@ class TelegramService:
         relative_path = os.path.relpath(file_path, self._settings.media_dir)
         download_info["relative_path"] = relative_path
 
-        signed_url = self._build_signed_media_url(relative_path)
+        signed_url = self._build_signed_media_url(relative_path, entity=entity, message_id=getattr(message, "id", None))
         if signed_url:
             download_info["signed_url"] = signed_url
 
@@ -130,16 +130,41 @@ class TelegramService:
         media_dict = serialized.setdefault("media", {})
         media_dict["download_info"] = download_info
 
-    async def _serialise_message(self, message) -> Dict:
+    async def _serialise_message(self, message, entity: Optional[str] = None) -> Dict:
         payload = json.loads(json.dumps(message.to_dict(), cls=DateTimeEncoder))
-        await self._enrich_with_media(message, payload)
+        await self._enrich_with_media(message, payload, entity)
         return payload
 
-    def _build_signed_media_url(self, relative_path: str) -> Optional[str]:
+    def _build_signed_media_url(
+        self,
+        relative_path: str,
+        entity: Optional[str] = None,
+        message_id: Optional[int] = None,
+    ) -> Optional[str]:
         if not relative_path:
             return None
-        token = self._media_serializer.dumps({"path": relative_path})
+        payload: Dict[str, object] = {"path": relative_path}
+        if entity:
+            payload["entity"] = entity
+        if message_id is not None:
+            payload["message_id"] = int(message_id)
+        token = self._media_serializer.dumps(payload)
         return f"/media/{token}"
+
+    async def _redownload_media(self, entity: str, message_id: int, absolute_path: str) -> Optional[str]:
+        async with self._client_lock:
+            target = await self._resolve_entity(entity)
+            message = await self._client.get_messages(target, ids=int(message_id))
+            if isinstance(message, list):
+                message = message[0] if message else None
+            if not message or not getattr(message, "media", None):
+                return None
+            try:
+                downloaded = await self._client.download_media(message.media, file=absolute_path)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Unable to redownload media for %s/%s: %s", entity, message_id, exc)
+                return None
+            return downloaded
 
     def get_media_path_from_token(self, token: str) -> str:
         try:
@@ -159,6 +184,18 @@ class TelegramService:
         absolute_path = os.path.abspath(os.path.join(media_root, normalized))
         if not absolute_path.startswith(media_root):
             raise BadSignature("Traversal detected")
+        if not os.path.exists(absolute_path):
+            entity = data.get("entity")
+            message_id = data.get("message_id")
+            if entity and message_id:
+                try:
+                    future = asyncio.run_coroutine_threadsafe(
+                        self._redownload_media(str(entity), int(message_id), absolute_path),
+                        self._loop,
+                    )
+                    future.result(timeout=30)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Failed to redownload missing media: %s", exc)
         return absolute_path
 
     async def _dispatch_webhook(self, payload: Dict, webhook_url: Optional[str], headers: Dict[str, str]) -> None:
@@ -195,7 +232,7 @@ class TelegramService:
                     break
 
                 for message in history.messages:
-                    serialised = await self._serialise_message(message)
+                    serialised = await self._serialise_message(message, entity)
                     serialised["source_entity"] = entity
                     all_serialised.append(serialised)
                     if effective_webhook:
@@ -222,7 +259,7 @@ class TelegramService:
             if not message:
                 return None
 
-            serialised = await self._serialise_message(message)
+            serialised = await self._serialise_message(message, entity)
             serialised["source_entity"] = entity
             if effective_webhook:
                 await self._dispatch_webhook(serialised, effective_webhook, webhook_headers)
@@ -240,7 +277,7 @@ class TelegramService:
         @self._client.on(events.NewMessage(chats=target))
         async def handler(event):  # noqa: ANN001 - Telethon provides event
             async with self._client_lock:
-                serialised = await self._serialise_message(event.message)
+                serialised = await self._serialise_message(event.message, self._settings.listener_entity)
                 await self._dispatch_webhook(serialised, webhook_url, headers)
 
         title = getattr(target, "title", str(target))
