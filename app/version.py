@@ -1,3 +1,3 @@
 import os
 
-APP_VERSION = os.getenv("APP_VERSION", "0.6.0")
+APP_VERSION = os.getenv("APP_VERSION", "0.6.1")
