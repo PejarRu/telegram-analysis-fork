@@ -3,3 +3,6 @@ Flask==2.3.3
 requests==2.31.0
 python-dotenv==1.0.0
 gunicorn==21.2.0
+flask-limiter==3.5.0
+prometheus-flask-exporter==0.23.0
+flasgger==0.9.7
