@@ -192,6 +192,7 @@ class TelegramService:
 
                 for message in history.messages:
                     serialised = await self._serialise_message(message)
+                    serialised["source_entity"] = entity
                     all_serialised.append(serialised)
                     if effective_webhook:
                         await self._dispatch_webhook(serialised, effective_webhook, webhook_headers)
@@ -218,6 +219,7 @@ class TelegramService:
                 return None
 
             serialised = await self._serialise_message(message)
+            serialised["source_entity"] = entity
             if effective_webhook:
                 await self._dispatch_webhook(serialised, effective_webhook, webhook_headers)
             return serialised
