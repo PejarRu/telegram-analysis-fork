@@ -1,3 +1,4 @@
+// ...existing code...
 .DS_Store
 
 site/
@@ -7,18 +8,29 @@ site/
 /nbproject/
 .idea/*
 
-venv
-.ipynb_checkpoints
-.projectignore
-*.session
-anaconda-project.yml
-*.json
-*.ipynb
-config.ini
-.env
-*/__pycache__/*
-app/services/__pycache__/
-app/__pycache__/
-app/__pycache__/*
+# Entornos virtuales
+venv/
+.venv/
 
-app/__pycache__/main.cpython-313.pyc
+# VS Code
+.vscode/
+
+# Python
+__pycache__/
+*/__pycache__/
+*.pyc
+
+# Sesiones y secretos
+*.session
+.env
+config.ini
+
+# Datos temporales / ejemplos
+api-response-example.json
+data/last_response.json
+data/media/
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
+// ...existing code...
