@@ -65,6 +65,8 @@ The Flask app instantiates `TelegramService` and `WebhookService` once at startu
 
 Copy `.env.example` to `.env`, fill it with your values, and keep the file out of version control if it contains secrets.
 
+> 🔒 **Producción (Dokploy)**: guarda `TELEGRAM_API_HASH`, `API_KEY` y `MEDIA_SIGNING_SECRET` como *secrets* en lugar de variables de entorno planas.
+
 ---
 
 ## Local setup (optional but recommended)
@@ -111,6 +113,15 @@ If you skip the items below, the service will fail to start or will crash under 
 3. **Gunicorn must run with a single worker**
    - Telethon stores sessions in SQLite, which does not support multi-process writes.
    - The Dockerfile now enforces `--workers 1` to prevent `sqlite3.OperationalError: database is locked`.
+
+### Session backups (highly recommended)
+
+Your `.session` file is unique and cannot be regenerated without re-authenticating. Schedule an automated backup on the server:
+
+```bash
+# Every 6 hours
+0 */6 * * * DATA_VOLUME_NAME=telegram-data BACKUP_DIR=/root/backups /bin/sh /etc/dokploy/applications/<app-id>/code/scripts/backup-session.sh
+```
 
 ### Automated session restore (recommended for CI/CD)
 
