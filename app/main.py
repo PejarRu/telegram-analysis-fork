@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from flask import Flask, request, jsonify, send_file, render_template_string
 import logging
 import json
@@ -203,6 +204,63 @@ def docs_home():
     )
 
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    """
+    Health check detallado
+    ---
+    responses:
+      200:
+        description: Service is healthy
+      503:
+        description: Service has issues
+    """
+    issues = []
+
+    # Verificar archivos esenciales
+    session_path = settings.session_path
+    if not os.path.exists(session_path):
+        issues.append({
+            "component": "telegram_session",
+            "status": "missing",
+            "path": session_path,
+            "fix": "Mount volume with session file or set TELEGRAM_SESSION_B64",
+        })
+
+    # Verificar directorios
+    if not os.path.exists(settings.media_dir):
+        issues.append({
+            "component": "media_directory",
+            "status": "missing",
+            "path": settings.media_dir,
+            "fix": "Mount persistent volume at /app/data",
+        })
+
+    # Verificar conexión Telegram
+    try:
+        telegram_connected = telegram_service._client and telegram_service._client.is_connected()
+    except Exception:  # noqa: BLE001
+        telegram_connected = False
+        issues.append({
+            "component": "telegram_client",
+            "status": "disconnected",
+            "fix": "Check logs and verify session is authorized",
+        })
+
+    if issues:
+        return jsonify({
+            "status": "unhealthy",
+            "issues": issues,
+            "timestamp": datetime.utcnow().isoformat(),
+        }), 503
+
+    return jsonify({
+        "status": "healthy",
+        "telegram_connected": telegram_connected,
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
 @app.route('/last-response', methods=['GET'])
 def get_last_response():
     try:
@@ -214,6 +272,41 @@ def get_last_response():
     except Exception as e:
         logger.error("Error reading last response: %s", e)
         return jsonify({'error': 'Internal error'}), 500
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Error 500 personalizado"""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Service Configuration Error</title>
+        <style>
+            body {{ font-family: monospace; padding: 40px; background: #1a1a1a; color: #ff6b6b; }}
+            .error-box {{ background: #2d2d2d; padding: 20px; border-left: 4px solid #ff6b6b; }}
+            code {{ background: #000; padding: 2px 6px; }}
+        </style>
+    </head>
+    <body>
+        <div class="error-box">
+            <h1>⚠ Service Configuration Error</h1>
+            <p>The Telegram API service is not properly configured.</p>
+            <h3>Common issues:</h3>
+            <ul>
+                <li>Missing persistent volume mount at <code>/app/data</code></li>
+                <li>Session file not found: <code>{settings.session_path}</code></li>
+                <li>Incorrect file permissions (needs UID 1000)</li>
+            </ul>
+            <h3>Quick fix:</h3>
+            <pre>docker service update \\
+  --mount-add type=volume,source=utils-telegram-data,target=/app/data \\
+  utils-utilspythontelegramanalysis-y4g0yx</pre>
+            <p><a href="/health">Check detailed health status</a></p>
+        </div>
+    </body>
+    </html>
+    """, 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

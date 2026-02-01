@@ -57,7 +57,36 @@ class TelegramService:
     async def _initialise(self) -> None:
         self._client_lock = asyncio.Lock()  # type: ignore[attr-defined]
 
-        os.makedirs(os.path.dirname(self._settings.session_path), exist_ok=True)
+        # NUEVO: Verificar que existen archivos/directorios esenciales
+        missing_items = []
+
+        # Verificar que el directorio de sesión existe y es escribible
+        session_dir = os.path.dirname(self._settings.session_path)
+        if not os.path.exists(session_dir):
+            missing_items.append(f"Session directory: {session_dir}")
+        elif not os.access(session_dir, os.W_OK):
+            missing_items.append(f"Session directory not writable: {session_dir}")
+
+        # Verificar directorio de media
+        if not os.path.exists(self._settings.media_dir):
+            missing_items.append(f"Media directory: {self._settings.media_dir}")
+        elif not os.access(self._settings.media_dir, os.W_OK):
+            missing_items.append(f"Media directory not writable: {self._settings.media_dir}")
+
+        # Si hay elementos faltantes, mostrar error claro
+        if missing_items:
+            error_msg = (
+                "⚠ DEPLOYMENT ERROR: Missing essential files/directories:\n\n"
+                + "\n".join(f"  - {item}" for item in missing_items)
+                + "\n\nAction required:\n"
+                + "  1. Mount persistent volume: -v utils-telegram-data:/app/data\n"
+                + "  2. Ensure session file exists in mounted volume\n"
+                + "  3. Check file permissions (user: appuser, UID: 1000)\n"
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        os.makedirs(session_dir, exist_ok=True)
         os.makedirs(self._settings.media_dir, exist_ok=True)
 
         self._client = TelegramClient(

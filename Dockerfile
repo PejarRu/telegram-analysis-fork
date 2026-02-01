@@ -27,7 +27,10 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Healthcheck performed in pure Python to avoid extra OS packages
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD python -c "import urllib.request as r; r.urlopen('http://127.0.0.1:8000/', timeout=3)"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
+    CMD python -c "import urllib.request as r, sys; \
+    resp = r.urlopen('http://127.0.0.1:8000/health', timeout=3); \
+    sys.exit(0 if resp.getcode() == 200 else 1)"
 
 # Ejecuta
 USER appuser

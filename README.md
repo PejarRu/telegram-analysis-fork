@@ -260,6 +260,31 @@ Returns the contents of `data/last_response.json`, i.e. the last payload sent to
 
 ---
 
+## Deployment Troubleshooting
+
+### "Bad Gateway" or service won't start
+
+1. Check health endpoint: `curl https://api-telegram.antonberzins.com/health`
+2. View logs: `docker service logs utils-utilspythontelegramanalysis-y4g0yx --tail 50`
+3. Common issues:
+   - **Volume not mounted**: Add `--mount-add type=volume,source=utils-telegram-data,target=/app/data`
+   - **Session missing**: Copy session file to volume or set `TELEGRAM_SESSION_B64`
+   - **Permission denied**: Run `chown -R 1000:1000 /path/to/volume`
+
+### Update deployment
+
+**From laptop:**
+```bash
+ssh root@SERVER 'cd /path/to/code && git pull && docker build -t IMAGE . && docker service update --image IMAGE --force SERVICE'
+```
+
+From Dokploy UI:
+
+- Click "Redeploy" button
+- Or configure GitHub webhook for auto-deploy on push
+
+---
+
 ## Maintenance tips
 
 - **Disk usage on the VPS**: run `df -h /` regularly. If usage is high, prune old images/containers (`docker system prune`) or move artefacts such as session backups elsewhere.
