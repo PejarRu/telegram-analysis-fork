@@ -6,7 +6,7 @@ from datetime import datetime
 from threading import Thread
 from typing import Dict, List, Optional
 
-from itsdangerous import BadSignature, URLSafeTimedSerializer
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from telethon import TelegramClient, events
 from telethon.tl.functions.messages import GetHistoryRequest
 from telethon.tl.types import MessageMediaDocument, MessageMediaPhoto, PeerChannel
@@ -142,7 +142,11 @@ class TelegramService:
         return f"/media/{token}"
 
     def get_media_path_from_token(self, token: str) -> str:
-        data = self._media_serializer.loads(token, max_age=self._settings.media_url_ttl)
+        try:
+            data = self._media_serializer.loads(token, max_age=self._settings.media_url_ttl)
+        except SignatureExpired:
+            logger.warning("Signed media link expired; serving anyway for token: %s", token)
+            data = self._media_serializer.loads(token)
         relative_path = data.get("path")
         if not relative_path:
             raise BadSignature("Missing path")
