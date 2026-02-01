@@ -9,6 +9,13 @@ services:
       - .env
     volumes:
       - telegram-data:/app/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 256M
 
 volumes:
   telegram-data:
