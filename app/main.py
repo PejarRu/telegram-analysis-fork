@@ -183,8 +183,20 @@ def get_message():
 
 @app.route('/media/<token>', methods=['GET'])
 def serve_media(token: str):
+    entity_override = request.args.get('entity')
+    message_id_override = request.args.get('message_id')
+    message_id_value = None
+    if message_id_override:
+        try:
+            message_id_value = int(message_id_override)
+        except ValueError:
+            message_id_value = None
     try:
-        media_path = telegram_service.get_media_path_from_token(token)
+        media_path = telegram_service.get_media_path_from_token(
+            token,
+            entity_override=entity_override,
+            message_id_override=message_id_value,
+        )
     except SignatureExpired:
         return jsonify({'error': 'Link expired'}), 410
     except BadSignature:

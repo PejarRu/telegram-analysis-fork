@@ -195,7 +195,12 @@ class TelegramService:
                 return None
             return downloaded
 
-    def get_media_path_from_token(self, token: str) -> str:
+    def get_media_path_from_token(
+        self,
+        token: str,
+        entity_override: Optional[str] = None,
+        message_id_override: Optional[int] = None,
+    ) -> str:
         try:
             data = self._media_serializer.loads(token, max_age=self._settings.media_url_ttl)
         except SignatureExpired:
@@ -214,9 +219,10 @@ class TelegramService:
         if not absolute_path.startswith(media_root):
             raise BadSignature("Traversal detected")
         if not os.path.exists(absolute_path):
-            entity = data.get("entity")
-            message_id = data.get("message_id")
+            entity = data.get("entity") or entity_override
+            message_id = data.get("message_id") or message_id_override
             if entity and message_id:
+                os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
                 try:
                     future = asyncio.run_coroutine_threadsafe(
                         self._redownload_media(str(entity), int(message_id), absolute_path),
