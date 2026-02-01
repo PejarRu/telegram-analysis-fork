@@ -2,16 +2,16 @@
 
 Service that fetches the latest messages from Telegram channels or groups using Telethon, optionally relays them to a webhook, and exposes an HTTP API. The root URL (`/`) now renders a tiny HTML documentation page (versioned via `app/version.py`) so you can quickly share usage notes with teammates after deploying.
 
-Need longer-form docs? The repo incluye un sitio de [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) listo para publicarse (`mkdocs.yml` + `docs/`).
+Need longer-form docs? The repo includes a [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) site ready to publish (`mkdocs.yml` + `docs/`).
 
 ```bash
 pip install -r mkdocs-material-deps.txt
 mkdocs serve
 ```
 
-Visita `http://127.0.0.1:8000/` para previsualizar y `mkdocs build` o `mkdocs gh-deploy` para publicar (por ejemplo en GitHub Pages).
+Visit `http://127.0.0.1:8000/` to preview, and use `mkdocs build` or `mkdocs gh-deploy` to publish (e.g. on GitHub Pages).
 
-¿Quieres automatizarlo? El workflow `Deploy docs` (`.github/workflows/docs.yml`) instala MkDocs Material y ejecuta `mkdocs gh-deploy --force` en cada push a `master`. Solo tienes que habilitar **Pages → Deploy from branch → gh-pages** en la configuración del repositorio.
+Want to automate it? The `Deploy docs` workflow (`.github/workflows/docs.yml`) installs MkDocs Material and runs `mkdocs gh-deploy --force` on every push to `master`. You only need to enable **Pages → Deploy from branch → gh-pages** in the repository settings.
 
 The project ships with a Docker image ready for production deployment (e.g. Dokploy + Traefik) and relies on a pre-authorised Telethon session file that is mounted into the container.
 
@@ -93,6 +93,35 @@ Copy `.env.example` to `.env`, fill it with your values, and keep the file out o
    - Stop the stack with `Ctrl+C` when you are done.
 
 The generated session file must accompany your deployment; without it Telethon will refuse to run inside the container.
+
+---
+
+## IMPORTANT: Deployment prerequisites (read before deploy)
+
+If you skip the items below, the service will fail to start or will crash under load.
+
+1. **A valid Telethon session file must exist inside the container**
+   - The API **will not** authorise itself in production.
+   - Generate it locally with `python -m app.auth` and make sure it ends up in `/app/data` inside the container.
+
+2. **Persist `/app/data` with a volume**
+   - The session file and `last_response.json` live under `/app/data`.
+   - Without a volume, every redeploy wipes the session and you will get `Telegram client not authorized`.
+
+3. **Gunicorn must run with a single worker**
+   - Telethon stores sessions in SQLite, which does not support multi-process writes.
+   - The Dockerfile now enforces `--workers 1` to prevent `sqlite3.OperationalError: database is locked`.
+
+### Automated session restore (recommended for CI/CD)
+
+If you want zero manual steps during deploys, pass the session as Base64:
+
+1. Locally encode the session:
+   ```bash
+   base64 -w0 @username.session > session.b64
+   ```
+2. Set `TELEGRAM_SESSION_B64` in your environment.
+3. On container start, `entrypoint.sh` restores the session into `/app/data` automatically.
 
 ---
 

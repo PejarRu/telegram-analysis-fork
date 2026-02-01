@@ -12,7 +12,7 @@ from .services.webhook import WebhookService  # noqa: E402
 from .services.telegram import TelegramService  # noqa: E402
 from .version import APP_VERSION  # noqa: E402
 
-# Configurar logging
+# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ DOCS_TEMPLATE = """
         <div class='card'>
             <h1>Telegram Analysis API</h1>
             <p class='meta'>Version {{ version }} · Single Telethon client + Flask proxy</p>
-            <p>Usa la cabecera <code>X-API-Key</code> o <code>Authorization: Bearer</code> para autenticarte. Todos los endpoints devuelven JSON.</p>
+            <p>Use the <code>X-API-Key</code> header or <code>Authorization: Bearer</code> to authenticate. All endpoints return JSON.</p>
 
             {% for ep in endpoints %}
             <div class='endpoint'>
@@ -62,7 +62,7 @@ DOCS_TEMPLATE = """
             </div>
             {% endfor %}
 
-            <p class='meta'>¿Necesitas el último payload recibido? Haz una petición autenticada a <code>GET /last-response</code>.</p>
+            <p class='meta'>Need the latest received payload? Make an authenticated request to <code>GET /last-response</code>.</p>
         </div>
     </body>
 </html>
@@ -72,8 +72,8 @@ DOCS_ENDPOINTS = [
         {
                 "method": "POST",
                 "path": "/trigger",
-                "description": "Recupera los últimos mensajes del canal/grupo y (opcional) los reenvía a un webhook.",
-                "details": "Body JSON con 'entity', 'limit' (2 por defecto) y 'webhook_url' opcional.",
+                "description": "Fetches the latest messages from the channel/group and (optionally) forwards them to a webhook.",
+                "details": "JSON body with 'entity', 'limit' (default 2), and optional 'webhook_url'.",
                 "sample": """curl -X POST https://<host>/trigger \
     -H 'Content-Type: application/json' \
     -H 'X-API-Key: <api_key>' \
@@ -82,23 +82,23 @@ DOCS_ENDPOINTS = [
         {
                 "method": "GET",
                 "path": "/message",
-                "description": "Devuelve un único mensaje por ID manteniendo el formato de /trigger.",
-                "details": "Query params: entity, message_id, webhook_url opcional.",
+                "description": "Returns a single message by ID, keeping the same format as /trigger.",
+                "details": "Query params: entity, message_id, optional webhook_url.",
                 "sample": """curl 'https://<host>/message?entity=@canal&message_id=123' \
     -H 'X-API-Key: <api_key>'""",
         },
         {
                 "method": "GET",
                 "path": "/media/<token>",
-                "description": "Sirve archivos descargados mediante enlaces firmados (campo signed_url del payload).",
-                "details": "Los tokens expiran tras MEDIA_URL_TTL_SECONDS y no requieren cabeceras extra.",
+                "description": "Serves downloaded files via signed links (signed_url field in the payload).",
+                "details": "Tokens expire after MEDIA_URL_TTL_SECONDS and do not require extra headers.",
                 "sample": "curl -L 'https://<host>/media/<token>'",
         },
         {
                 "method": "GET",
                 "path": "/last-response",
-                "description": "Entrega el último payload persistido en disco (requiere API key).",
-                "details": "Útil para depurar qué se envió a n8n u otro webhook.",
+                "description": "Returns the last payload persisted on disk (requires API key).",
+                "details": "Useful for debugging what was sent to n8n or another webhook.",
                 "sample": "curl https://<host>/last-response -H 'X-API-Key: <api_key>'",
         },
 ]

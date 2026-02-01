@@ -8,6 +8,7 @@ services:
     env_file:
       - .env
     volumes:
-      - .:/app
-    environment:
-      - FLASK_ENV=development
+      - telegram-data:/app/data
+
+volumes:
+  telegram-data:

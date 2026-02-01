@@ -19,10 +19,17 @@ RUN pip install -r requirements.txt
 COPY . /app
 
 # Crea directorios persistentes
-RUN mkdir -p /app/data /app/logs
+RUN mkdir -p /app/data /app/logs \
+    && chown -R appuser:appuser /app
+
+# Entrypoint para restaurar sesión si se provee por variable
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Healthcheck performed in pure Python to avoid extra OS packages
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD python -c "import urllib.request as r; r.urlopen('http://127.0.0.1:8000/', timeout=3)"
 
 # Ejecuta
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app.main:app"]
+USER appuser
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "app.main:app"]
