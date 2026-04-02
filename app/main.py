@@ -150,30 +150,30 @@ def check_api_key():
 @app.route('/trigger', methods=['POST'])
 @limiter.limit("10 per minute")
 def trigger():
-        """
-        Trigger message fetch
-        ---
-        parameters:
-            - name: entity
-                in: body
-                required: true
-                schema:
-                    type: object
-                    properties:
-                        entity:
-                            type: string
-                        limit:
-                            type: integer
-                        webhook_url:
-                            type: string
-        responses:
-            200:
-                description: Messages fetched successfully
-            400:
-                description: Invalid payload
-            500:
-                description: Internal error
-        """
+    """
+    Trigger message fetch
+    ---
+    parameters:
+        - name: entity
+            in: body
+            required: true
+            schema:
+                type: object
+                properties:
+                    entity:
+                        type: string
+                    limit:
+                        type: integer
+                    webhook_url:
+                        type: string
+    responses:
+        200:
+            description: Messages fetched successfully
+        400:
+            description: Invalid payload
+        500:
+            description: Internal error
+    """
     data = request.get_json()
     if not data or 'entity' not in data:
         return jsonify({'error': 'entity is required'}), 400
@@ -202,32 +202,32 @@ def trigger():
 
 @app.route('/message', methods=['GET'])
 def get_message():
-        """
-        Get a message by ID
-        ---
-        parameters:
-            - name: entity
-                in: query
-                required: true
-                type: string
-            - name: message_id
-                in: query
-                required: true
-                type: integer
-            - name: webhook_url
-                in: query
-                required: false
-                type: string
-        responses:
-            200:
-                description: Message fetched successfully
-            400:
-                description: Invalid request
-            404:
-                description: Message not found
-            500:
-                description: Internal error
-        """
+    """
+    Get a message by ID
+    ---
+    parameters:
+        - name: entity
+            in: query
+            required: true
+            type: string
+        - name: message_id
+            in: query
+            required: true
+            type: integer
+        - name: webhook_url
+            in: query
+            required: false
+            type: string
+    responses:
+        200:
+            description: Message fetched successfully
+        400:
+            description: Invalid request
+        404:
+            description: Message not found
+        500:
+            description: Internal error
+    """
     entity = request.args.get('entity')
     message_id = request.args.get('message_id')
     webhook_url = request.args.get('webhook_url', settings.default_webhook)
@@ -256,22 +256,22 @@ def get_message():
 
 @app.route('/media/<token>', methods=['GET'])
 def serve_media(token: str):
-        """
-        Download media by signed token
-        ---
-        parameters:
-            - name: token
-                in: path
-                required: true
-                type: string
-        responses:
-            200:
-                description: Media download
-            404:
-                description: Invalid or missing media
-            410:
-                description: Link expired
-        """
+    """
+    Download media by signed token
+    ---
+    parameters:
+        - name: token
+            in: path
+            required: true
+            type: string
+    responses:
+        200:
+            description: Media download
+        404:
+            description: Invalid or missing media
+        410:
+            description: Link expired
+    """
     entity_override = request.args.get('entity')
     message_id_override = request.args.get('message_id')
     message_id_value = None
@@ -364,15 +364,15 @@ def health_check():
 
 @app.route('/last-response', methods=['GET'])
 def get_last_response():
-        """
-        Get the last webhook payload
-        ---
-        responses:
-            200:
-                description: Payload returned
-            500:
-                description: Internal error
-        """
+    """
+    Get the last webhook payload
+    ---
+    responses:
+        200:
+            description: Payload returned
+        500:
+            description: Internal error
+    """
     try:
         with open(os.path.join(settings.data_dir, 'last_response.json'), 'r') as f:
             data = json.load(f)
